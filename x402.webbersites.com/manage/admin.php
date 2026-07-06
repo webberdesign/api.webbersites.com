@@ -1,0 +1,194 @@
+<?php
+// ----------------------------------------------------------------------------
+// WebberSites x402 — private stats dashboard.
+// Server-side proxy to the API's /stats endpoint: the STATS_KEY lives here in
+// PHP and never reaches the browser. Gate is a single admin password (session).
+//
+// SETUP (edit these two lines, then upload to /manage/admin.php):
+// ----------------------------------------------------------------------------
+const ADMIN_PASSWORD = 'CHANGE_ME_BEFORE_UPLOAD';
+const STATS_KEY      = 'PASTE_YOUR_STATS_KEY';
+
+const STATS_URL   = 'https://api.webbersites.com/stats';
+const SEED_WALLET = '0xe3724232cd926d708737bddaa7b60e36d4bfb5f0'; // our own seed/test wallet
+
+session_start();
+
+if (isset($_GET['logout'])) { session_destroy(); header('Location: admin.php'); exit; }
+if (isset($_POST['pw'])) {
+  if (hash_equals(ADMIN_PASSWORD, $_POST['pw'])) { $_SESSION['ok'] = true; header('Location: admin.php'); exit; }
+  $err = 'Wrong password.';
+}
+$authed = !empty($_SESSION['ok']);
+
+function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+function money($n) { return '$' . number_format((float)$n, 3); }
+function shortAddr($a) { return strlen($a) > 12 ? substr($a, 0, 8) . '…' . substr($a, -4) : $a; }
+
+$stats = null; $fetchErr = null;
+if ($authed) {
+  $ch = curl_init(STATS_URL . '?key=' . urlencode(STATS_KEY));
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 12, CURLOPT_FOLLOWLOCATION => true]);
+  $body = curl_exec($ch);
+  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+  if ($body === false || $code !== 200) { $fetchErr = "stats fetch failed (HTTP $code)"; }
+  else { $stats = json_decode($body, true); if (!is_array($stats)) $fetchErr = 'stats returned unparseable JSON'; }
+}
+
+$includeSeed = isset($_GET['seed']);
+$refresh = isset($_GET['refresh']) ? max(15, (int)$_GET['refresh']) : 0;
+
+// Derive organic (non-seed) figures from top_payers when available.
+$seedRow = null;
+if ($stats) {
+  foreach (($stats['top_payers'] ?? []) as $p) {
+    $addr = strtolower($p['address'] ?? $p['payer'] ?? '');
+    if ($addr === SEED_WALLET) { $seedRow = $p; break; }
+  }
+}
+$organicRevenue = $stats ? max(0, ($stats['revenue_usd'] ?? 0) - ($seedRow['revenue_usd'] ?? 0)) : 0;
+$organicPayers  = $stats ? max(0, ($stats['unique_payers'] ?? 0) - ($seedRow ? 1 : 0)) : 0;
+?>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<?php if ($refresh): ?><meta http-equiv="refresh" content="<?= $refresh ?>"><?php endif; ?>
+<title>x402 stats — WebberSites admin</title>
+<style>
+  :root{
+    --bg:#0d0e11; --surface:#15171d; --surface-2:#1a1d24;
+    --line:rgba(244,241,234,0.08); --line-strong:rgba(244,241,234,0.15);
+    --ink:#f4f1ea; --ink-dim:rgba(244,241,234,0.60); --ink-faint:rgba(244,241,234,0.38);
+    --accent:#ff6b35; --track:rgba(244,241,234,0.06);
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:14px;line-height:1.6;padding:32px 20px}
+  .wrap{max-width:1060px;margin:0 auto}
+  h1{font-size:18px;font-weight:600;letter-spacing:-0.01em}
+  .sub{color:var(--ink-faint);font-size:12px;margin-top:4px}
+  .bar{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:28px}
+  .bar a{color:var(--ink-dim);font-size:12px;text-decoration:none;border:1px solid var(--line-strong);border-radius:6px;padding:5px 10px}
+  .bar a:hover{color:var(--ink)}
+  .bar a.on{color:var(--accent);border-color:var(--accent)}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:28px}
+  .tile{background:var(--surface);padding:16px 18px}
+  .tile b{display:block;font-size:24px;font-weight:600;letter-spacing:-0.02em}
+  .tile span{color:var(--ink-faint);font-size:11.5px;letter-spacing:0.04em}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:24px;overflow-x:auto}
+  .card h2{font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:14px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--ink-faint);font-weight:500;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;padding:6px 10px;border-bottom:1px solid var(--line-strong)}
+  td{padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .track{position:relative;min-width:160px;height:6px;background:var(--track);border-radius:4px;overflow:hidden}
+  .fill{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:4px}
+  a.addr{color:var(--ink-dim);text-decoration:none;border-bottom:1px dotted var(--line-strong)}
+  a.addr:hover{color:var(--ink)}
+  .badge{display:inline-block;font-size:10px;letter-spacing:0.06em;color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:1px 6px;margin-left:8px;vertical-align:1px}
+  .free{color:var(--ink-faint)}
+  .err{background:rgba(255,107,53,0.08);border:1px solid var(--accent);border-radius:10px;padding:14px 18px;margin-bottom:24px}
+  /* login */
+  .login{max-width:340px;margin:14vh auto 0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px}
+  .login input{width:100%;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);font-family:var(--mono);font-size:14px;padding:10px 12px;margin:14px 0}
+  .login button{width:100%;background:var(--accent);border:0;border-radius:8px;color:#0d0e11;font-family:var(--mono);font-weight:600;font-size:14px;padding:10px;cursor:pointer}
+  @media (max-width:640px){ body{padding:16px 10px} .card{padding:14px 12px} }
+</style>
+</head>
+<body>
+<?php if (!$authed): ?>
+  <form class="login" method="post" autocomplete="off">
+    <h1>x402 stats</h1>
+    <p class="sub">WebberSites admin — enter the panel password.</p>
+    <?php if (!empty($err)): ?><p class="sub" style="color:var(--accent)"><?= h($err) ?></p><?php endif; ?>
+    <input type="password" name="pw" placeholder="password" autofocus>
+    <button type="submit">Open dashboard</button>
+  </form>
+<?php elseif ($fetchErr): ?>
+  <div class="wrap"><div class="err">✗ <?= h($fetchErr) ?> — is STATS_KEY correct and the API up? <a class="addr" href="admin.php">retry</a></div></div>
+<?php else:
+  $byEp = $stats['by_endpoint'] ?? [];
+  uasort($byEp, fn($a, $b) => ($b['revenue_usd'] ?? 0) <=> ($a['revenue_usd'] ?? 0));
+  $maxRev = 0.000001;
+  foreach ($byEp as $v) $maxRev = max($maxRev, $v['revenue_usd'] ?? 0);
+?>
+  <div class="wrap">
+    <div class="bar">
+      <div>
+        <h1>x402 stats</h1>
+        <div class="sub">log since <?= h(substr($stats['booted'] ?? '', 0, 19)) ?> · fetched <?= h(gmdate('Y-m-d H:i:s')) ?> UTC</div>
+      </div>
+      <div>
+        <a href="admin.php<?= $includeSeed ? '' : '?seed=1' ?>" class="<?= $includeSeed ? 'on' : '' ?>"><?= $includeSeed ? 'seed wallet shown' : 'show seed wallet' ?></a>
+        <a href="admin.php?refresh=60<?= $includeSeed ? '&seed=1' : '' ?>" class="<?= $refresh ? 'on' : '' ?>">auto-refresh 60s</a>
+        <a href="admin.php?logout=1">log out</a>
+      </div>
+    </div>
+
+    <div class="tiles">
+      <div class="tile"><b><?= (int)($stats['total_paid_calls'] ?? 0) ?></b><span>paid calls</span></div>
+      <div class="tile"><b><?= money($stats['revenue_usd'] ?? 0) ?></b><span>revenue (all)</span></div>
+      <div class="tile"><b><?= money($organicRevenue) ?></b><span>revenue excl. seed</span></div>
+      <div class="tile"><b><?= (int)$organicPayers ?></b><span>stranger wallets</span></div>
+      <div class="tile"><b><?= h($stats['repeat_rate'] ?? 0) ?>%</b><span>repeat rate</span></div>
+      <div class="tile"><b><?= money($stats['revenue_from_repeat_usd'] ?? 0) ?></b><span>repeat revenue</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Revenue by endpoint</h2>
+      <table>
+        <tr><th>endpoint</th><th class="num">calls</th><th class="num">revenue</th><th></th></tr>
+        <?php foreach ($byEp as $ep => $v): ?>
+        <tr>
+          <td><?= h($ep) ?></td>
+          <td class="num"><?= (int)($v['count'] ?? 0) ?></td>
+          <td class="num"><?= money($v['revenue_usd'] ?? 0) ?></td>
+          <td><div class="track"><div class="fill" style="width:<?= max(1, round(100 * ($v['revenue_usd'] ?? 0) / $maxRev)) ?>%"></div></div></td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Payers — the agents</h2>
+      <table>
+        <tr><th>wallet</th><th class="num">calls</th><th class="num">spent</th><th>first seen</th><th>last seen</th></tr>
+        <?php foreach (($stats['top_payers'] ?? []) as $p):
+          $addr = $p['address'] ?? $p['payer'] ?? '?';
+          $isSeed = strtolower($addr) === SEED_WALLET;
+          if ($isSeed && !$includeSeed) continue; ?>
+        <tr>
+          <td><a class="addr" href="https://basescan.org/address/<?= h($addr) ?>" target="_blank" rel="noopener"><?= h(shortAddr($addr)) ?></a><?= $isSeed ? '<span class="badge">SEED</span>' : '' ?></td>
+          <td class="num"><?= (int)($p['count'] ?? 0) ?></td>
+          <td class="num"><?= money($p['revenue_usd'] ?? 0) ?></td>
+          <td><?= h(substr($p['first'] ?? '', 0, 16)) ?></td>
+          <td><?= h(substr($p['last'] ?? '', 0, 16)) ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Recent calls</h2>
+      <table>
+        <tr><th>time (utc)</th><th>endpoint</th><th>payer</th><th class="num">amount</th></tr>
+        <?php foreach (($stats['recent'] ?? []) as $r):
+          $payer = $r['payer'] ?? null; ?>
+        <tr>
+          <td><?= h(str_replace('T', ' ', substr($r['t'] ?? '', 0, 19))) ?></td>
+          <td><?= h($r['endpoint'] ?? '') ?></td>
+          <td><?php if ($payer): ?><a class="addr" href="https://basescan.org/address/<?= h($payer) ?>" target="_blank" rel="noopener"><?= h(shortAddr($payer)) ?></a><?php else: ?><span class="free">—</span><?php endif; ?></td>
+          <td class="num"><?= isset($r['amount']) ? money($r['amount']) : '<span class="free">free</span>' ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+    </div>
+  </div>
+<?php endif; ?>
+</body>
+</html>
