@@ -26,3 +26,4 @@ Claude.webloc
 # Filled-in admin panel credentials live only locally + on GoDaddy.
 # The placeholder template is admin.php.example.
 x402.webbersites.com/manage/admin.php
+x402.webbersites.com/manage/board.php
