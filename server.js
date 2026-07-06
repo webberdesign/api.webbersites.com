@@ -4157,7 +4157,7 @@ function buildOpenApi() {
         "Call any endpoint normally; a 402 response returns machine-readable payment requirements. Sign the USDC authorization (EIP-3009) and retry with the " +
         "X-PAYMENT header to receive the data. Machine-readable payment catalog: /.well-known/x402",
       "x-guidance":
-        "Every endpoint is pay-per-call: expect HTTP 402 with signed payment requirements on the first request; pay in USDC on Base (EIP-3009) and retry with the X-PAYMENT header — @x402/fetch automates this. Prices are in each operation's x-payment-info ($0.001–$0.009). No registration, no API keys, no rate-limit tiers. Prefer MCP? Remote endpoint at /mcp (quote mode without a wallet) or `npx -y webbersites-x402-mcp` locally. Human docs: https://x402.webbersites.com/docs/",
+        "Every endpoint is pay-per-call: expect HTTP 402 with signed payment requirements on the first request; pay in USDC on Base (EIP-3009) and retry with the X-PAYMENT header — @x402/fetch automates this. Prices are in each operation's x-payment-info ($0.001–$0.009). No registration, no API keys, no rate-limit tiers. Prefer MCP? Remote endpoint at /mcp (quote mode without a wallet), `npx -y webbersites-x402-mcp` locally, or one-click via Smithery: https://smithery.ai/servers/service-tfij/webbersites-x402. Human docs: https://x402.webbersites.com/docs/",
       contact: {
         url: "https://x402.webbersites.com",
         // Public contact + ownership verification for indexers (x402scan).
@@ -4237,6 +4237,7 @@ app.get("/.well-known/agents.json", (_req, res) => {
         remote: `${BASE_URL}/mcp`,
         configSchema: `${BASE_URL}/mcp/.well-known/mcp-config`,
         local: "npx -y webbersites-x402-mcp",
+        smithery: "https://smithery.ai/servers/service-tfij/webbersites-x402",
       },
     },
     docs: {

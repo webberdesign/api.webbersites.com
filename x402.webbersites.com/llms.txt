@@ -12,6 +12,7 @@ The machine-readable catalog of every endpoint, price, and payment requirement i
 - [x402 discovery document](https://api.webbersites.com/.well-known/x402): every endpoint with price, network, and pay-to address (JSON)
 - [llms-full.txt](https://x402.webbersites.com/llms-full.txt): the full reference — request/response examples for every endpoint and a worked payment flow
 - [MCP server (npm)](https://www.npmjs.com/package/webbersites-x402-mcp): use this API as native tools in any MCP client — `npx -y webbersites-x402-mcp` with an `EVM_PRIVATE_KEY`; tools are generated from the live OpenAPI spec
+- [MCP via Smithery](https://smithery.ai/servers/service-tfij/webbersites-x402): one-click hosted connection through Smithery's gateway — quote mode with zero config; add a hot-wallet key in the connection settings to make paying calls
 - [Remote MCP endpoint](https://api.webbersites.com/mcp): connect any remote-MCP client (claude.ai custom connectors, Smithery) to `https://api.webbersites.com/mcp` — quote mode by default; add `?evmPrivateKey=0x…` (throwaway hot wallet) for paying calls
 - [API menu](https://api.webbersites.com/): human- and agent-readable endpoint index with example calls (JSON)
 - [Website](https://x402.webbersites.com/): overview, quickstart, and live demos

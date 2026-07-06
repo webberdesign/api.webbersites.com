@@ -15,8 +15,9 @@ Network: Base mainnet (`eip155:8453`) · Asset: USDC · Prices: $0.001–$0.009 
 4. Retry the same request with the signed payload base64-encoded in the `X-PAYMENT` request header.
 5. The response is your data, with settlement confirmed in the `X-PAYMENT-RESPONSE` header.
 
-Prefer tools over HTTP? Two options:
+Prefer tools over HTTP? Three options:
 - **Local MCP server** ([npm](https://www.npmjs.com/package/webbersites-x402-mcp)): `npx -y webbersites-x402-mcp` with `EVM_PRIVATE_KEY` set — your key never leaves your machine. Recommended.
+- **Smithery** ([listing](https://smithery.ai/servers/service-tfij/webbersites-x402)): one-click hosted connection through Smithery's gateway — quote mode with zero config; add a hot-wallet key in the connection settings to make paying calls.
 - **Remote MCP endpoint**: connect `https://api.webbersites.com/mcp` from any remote-MCP client (claude.ai custom connectors, etc.). Quote mode by default; append `?evmPrivateKey=0x…` to make paying calls — use a throwaway hot wallet with USDC dust only, since the key rides the connection URL. Per-call ceiling defaults to $0.50 (the full menu); add `&maxPrice=0.05` to restrict to micro-priced tools.
 
 Client libraries do steps 2–4 automatically. Node example with `@x402/fetch`:
