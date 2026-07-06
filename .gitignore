@@ -19,3 +19,6 @@ x402.webbersites.com/docs/.openapi-cache.json
 
 # The MCP npm package is its own repo: webberdesign/webbersites-x402-mcp
 mcp/
+
+# local link file
+Claude.webloc
