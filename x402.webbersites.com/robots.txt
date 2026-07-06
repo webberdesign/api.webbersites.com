@@ -1,0 +1,49 @@
+# x402.webbersites.com — a pay-per-call data API built FOR AI agents.
+# Machines are the customer here. Crawl, index, and quote freely.
+#
+# Agent-readable overview:  https://x402.webbersites.com/llms.txt
+# Full endpoint reference:  https://x402.webbersites.com/llms-full.txt
+# OpenAPI 3.1 spec:         https://api.webbersites.com/openapi.json
+# x402 payment catalog:     https://api.webbersites.com/.well-known/x402
+
+User-agent: *
+Allow: /
+
+# --- Explicit welcome for search crawlers ---
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# --- Explicit welcome for AI crawlers and training bots ---
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+Sitemap: https://x402.webbersites.com/sitemap.xml

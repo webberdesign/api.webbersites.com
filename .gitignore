@@ -1,0 +1,21 @@
+# Secrets — the hot-wallet key and any deploy credentials live in .env.
+# Never commit these.
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Runtime data (hit log, agent datastore sqlite)
+data/
+
+# Generated caches
+x402.webbersites.com/docs/.openapi-cache.json
+
+# OS / editor noise
+.DS_Store
+*.log
+
+# The MCP npm package is its own repo: webberdesign/webbersites-x402-mcp
+mcp/

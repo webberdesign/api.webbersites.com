@@ -1,0 +1,15 @@
+RewriteEngine On
+RewriteBase /docs/
+
+# Legacy static paths -> clean URLs
+RewriteRule ^([a-z0-9-]+)\.html$ /docs/$1 [R=301,L]
+
+# Clean endpoint URLs -> router (only if not a real file/dir)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([a-z0-9-]+)/?$ index.php?e=$1 [QSA,L]
+
+# Keep the spec cache private
+<Files ".openapi-cache.json">
+  Require all denied
+</Files>
