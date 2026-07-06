@@ -10,6 +10,7 @@ import TurndownService from "turndown";
 import geoip from "geoip-lite";
 import { isIP } from "node:net";
 import { Resolver } from "node:dns/promises";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -1227,15 +1228,36 @@ const PRICE_BY_KEY = Object.fromEntries(
 const HITS = {
   started: new Date().toISOString(), // this boot
   total: 0,
+  free_reads: 0,   // successful hits with no charge (e.g. free board reads)
   revenue_usd: 0,
   by_endpoint: {}, // key -> { count, revenue_usd }
   payers: {},      // address -> { count, revenue_usd, first, last }
+  readers: {},     // hashed ip -> { count, first, last, country?, ua? } for free reads
   recent: [],
 };
+const READERS_MAX = 2000; // cap the anonymous-reader map so it can't grow unbounded
 
 function recordHit(rec) {
   HITS.total++;
   HITS.revenue_usd = Math.round((HITS.revenue_usd + (rec.amount || 0)) * 1e6) / 1e6;
+  // Free-read tracking (no payer, no charge): count it, and when the record
+  // carries reader identity (hashed ip + geo + UA — added 2026-07-06, so
+  // older log lines just count), aggregate per anonymous reader.
+  if (!(rec.amount > 0) && !rec.payer) {
+    HITS.free_reads++;
+    if (rec.rdr) {
+      let r = HITS.readers[rec.rdr];
+      if (!r && Object.keys(HITS.readers).length < READERS_MAX) {
+        r = HITS.readers[rec.rdr] = { count: 0, first: rec.t, last: rec.t };
+      }
+      if (r) {
+        r.count++;
+        r.last = rec.t;
+        if (rec.cc) r.country = rec.cc;
+        if (rec.ua) r.ua = rec.ua;
+      }
+    }
+  }
   const ep = (HITS.by_endpoint[rec.endpoint] ||= { count: 0, revenue_usd: 0 });
   ep.count++;
   ep.revenue_usd = Math.round((ep.revenue_usd + (rec.amount || 0)) * 1e6) / 1e6;
@@ -1305,6 +1327,19 @@ app.use((req, res, next) => {
         amount: PRICE_BY_KEY[key] || 0,
         status: res.statusCode,
       };
+      // Free reads have no wallet identity, so capture what an HTTP request
+      // does carry: a hashed ip (unique readers without storing addresses),
+      // country, and the client's user-agent.
+      if (!payer && !(rec.amount > 0)) {
+        const ip = req.ip || "";
+        if (ip) {
+          rec.rdr = createHash("sha256").update("ws-reader:" + ip).digest("hex").slice(0, 12);
+          const geo = geoip.lookup(ip);
+          if (geo?.country) rec.cc = geo.country;
+        }
+        const ua = req.header("user-agent");
+        if (ua) rec.ua = String(ua).slice(0, 80);
+      }
       recordHit(rec);
       // Durable local append — fire-and-forget so it never delays the response.
       fs.appendFile(HITS_LOG, JSON.stringify(rec) + "\n", () => {});
@@ -4567,7 +4602,9 @@ app.get("/stats", (req, res) => {
   res.json({
     booted: HITS.started,
     log_file: HITS_LOG,
-    total_paid_calls: HITS.total,
+    total_calls: HITS.total,
+    total_paid_calls: HITS.total - HITS.free_reads,
+    free_reads: HITS.free_reads,
     revenue_usd: HITS.revenue_usd,
     unique_payers: payerEntries.length,
     repeat_payers: repeat.length,
@@ -4580,6 +4617,25 @@ app.get("/stats", (req, res) => {
       .sort((a, b) => b[1].revenue_usd - a[1].revenue_usd)
       .slice(0, 10)
       .map(([address, p]) => ({ address, ...p })),
+    // Anonymous free-read audience (board pollers etc.): hashed-ip readers
+    // with geo + client, so the funnel's top is as visible as its paying end.
+    board_readers: (() => {
+      const entries = Object.entries(HITS.readers);
+      const tally = (pick) => {
+        const m = {};
+        for (const [, r] of entries) { const k = pick(r); if (k) m[k] = (m[k] || 0) + r.count; }
+        return Object.fromEntries(Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 10));
+      };
+      return {
+        unique_readers: entries.length,
+        top_readers: entries
+          .sort((a, b) => b[1].count - a[1].count)
+          .slice(0, 15)
+          .map(([id, r]) => ({ id, ...r })),
+        by_country: tally((r) => r.country),
+        by_client: tally((r) => r.ua),
+      };
+    })(),
     recent: HITS.recent,
   });
 });
