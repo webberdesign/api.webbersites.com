@@ -1113,8 +1113,17 @@ const middlewareRoutes = {};
 const API_REGISTRY = []; // [{ method, path, price, description, opts }]
 for (const [key, cfg] of Object.entries(PAID_ROUTES)) {
   const { _doc, ...clean } = cfg;
-  middlewareRoutes[key] = clean;
   const [method, path] = key.split(" ");
+  // Branding + tags on every route: Bazaar surfaces serviceName/iconUrl/tags
+  // on discovery entries, and most competing listings have them — anonymous
+  // entries rank and read worse to browsing agents.
+  middlewareRoutes[key] = {
+    serviceName: "WebberSites x402 Data API",
+    iconUrl: "https://x402.webbersites.com/webbersites-icon.png",
+    mimeType: "application/json",
+    tags: [apiCategory(path)],
+    ...clean,
+  };
   API_REGISTRY.push({ method, path, price: _doc?.price, description: cfg.description, opts: _doc?.opts || {} });
 }
 
@@ -4045,7 +4054,7 @@ function apiCategory(p) {
   if (/^\/api\/(scrape|summarize|extract)/.test(p)) return "Web Content";
   if (/^\/api\/(schema|og|seo)\//.test(p)) return "SEO & Publishing";
   if (/^\/api\/a11y\//.test(p)) return "Accessibility";
-  if (/^\/api\/(icon|logo|brand)\/|^\/api\/(vectorize|webbie)/.test(p)) return "Design & Assets";
+  if (/^\/api\/(icon|logo|brand)\/|^\/api\/(vectorize|website)/.test(p)) return "Design & Assets";
   if (/^\/api\/wp\//.test(p)) return "Security";
   if (/^\/api\/(dns|email)/.test(p)) return "Domain & Email Intelligence";
   if (/^\/api\/music\//.test(p)) return "Music";
