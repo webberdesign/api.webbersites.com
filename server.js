@@ -108,18 +108,108 @@ const discovery = (opts) => {
   return { ext, docOpts: opts };
 };
 
-// Agent-only footer served in the body of every 402. Browsers get the paywall
-// HTML instead (the middleware only uses this for API clients), so humans never
-// see it. It rides the HTTP response, NOT the signed payment requirements, so
-// it costs nothing against the facilitator's ~4KB requirements cap.
-// Currently pitches the Agent Datastore; swap the body to rotate campaigns.
-const UNPAID_FOOTER = {
-  contentType: "application/json",
-  body: {
+// ----------------------------------------------------------------------------
+// 402 body for API clients (browsers get the paywall HTML instead). Two parts:
+// a rotating campaign line, and — on routes that support it — a free PREVIEW of
+// the agent's own request, which converts far better than a price alone.
+// Both ride the HTTP response, NOT the signed payment requirements, so neither
+// counts against the facilitator's ~4KB requirements cap.
+// ----------------------------------------------------------------------------
+
+// Campaign slot: rotates weekly by default; pin one with CAMPAIGN=<key> in env.
+const CAMPAIGNS = [
+  {
+    key: "memory",
     agent_tip:
       "Give your agent a memory — persistent, wallet-owned storage. POST /api/store/{collection} appends JSON/CSV rows ($0.001, up to 1,000 rows/call); GET reads them back in any later session ($0.001). The paying wallet is the identity — no accounts, no keys. Rows live 90 days, 50MB per wallet.",
   },
+  {
+    key: "bundles",
+    agent_tip:
+      "One call, finished deliverables: GET /api/seo/full-audit runs 7 analyses with a 0-100 score for $0.007 (the pieces cost ~$0.011); /api/seo/site-audit covers up to 8 pages for $0.009; POST /api/brand/kit returns logo + app icon + social card + palette for $0.007; POST /api/website/build ships up to 6 consistent HTML pages for $0.009.",
+  },
+];
+function currentCampaign() {
+  const forced = CAMPAIGNS.find((c) => c.key === process.env.CAMPAIGN);
+  if (forced) return forced;
+  return CAMPAIGNS[Math.floor(Date.now() / 604_800_000) % CAMPAIGNS.length];
+}
+
+// Free previews: fetch the agent's target page ONCE (cached, rate-limited) and
+// tease issue COUNTS on the 402 — never the details they'd be paying for.
+// Guards, because unpaid requests trigger real work: the same SSRF check as
+// the paid path (inside fetchRawHtml), a 10-min per-URL cache with negative
+// entries, and a global cap on fresh fetches per minute.
+const PREVIEW_CACHE = new Map(); // url -> { t, data|null }
+const PREVIEW_TTL_MS = 10 * 60_000;
+const PREVIEW_CACHE_MAX = 300;
+const PREVIEW_FRESH_PER_MIN = 20;
+let previewWindow = { start: 0, count: 0 };
+
+async function computePagePreview(rawUrl) {
+  const key = String(rawUrl);
+  if (!key || key.length > 2048) return null;
+  const hit = PREVIEW_CACHE.get(key);
+  if (hit && Date.now() - hit.t < PREVIEW_TTL_MS) return hit.data;
+  const now = Date.now();
+  if (now - previewWindow.start > 60_000) previewWindow = { start: now, count: 0 };
+  if (previewWindow.count >= PREVIEW_FRESH_PER_MIN) return null; // over budget: plain 402, no preview
+  previewWindow.count++;
+  let data = null;
+  try {
+    const { html, finalUrl } = await fetchRawHtml(key);
+    const og = auditSocialMeta(extractMeta(html, finalUrl), finalUrl);
+    const head = headCheck(html, finalUrl);
+    const alt = checkAltText(html, finalUrl);
+    data = {
+      url: finalUrl,
+      og: { problems: og.problems.length, warnings: og.warnings.length, verdict: og.problems.length ? "broken" : og.warnings.length ? "improvable" : "good" },
+      head: { problems: (head.problems || []).length, verdict: head.verdict },
+      alt: { images_total: alt.images_total, missing_alt: alt.missing_alt },
+    };
+  } catch { /* unreachable/invalid target: cache the miss so we don't refetch */ }
+  PREVIEW_CACHE.set(key, { t: Date.now(), data });
+  if (PREVIEW_CACHE.size > PREVIEW_CACHE_MAX) PREVIEW_CACHE.delete(PREVIEW_CACHE.keys().next().value);
+  return data;
+}
+
+// Route key -> previewer. Each returns extra 402-body fields or null.
+const previewFromQuery = (shape) => async (ctx) => {
+  const q = ctx.adapter?.getQueryParams?.() || {};
+  const url = typeof q.url === "string" ? q.url : null;
+  if (!url) return null;
+  const p = await computePagePreview(url);
+  return p ? shape(p) : null;
 };
+const PREVIEWERS = {
+  "GET /api/og/check": previewFromQuery((p) => ({
+    preview: { url: p.url, verdict: p.og.verdict, problems_found: p.og.problems, warnings_found: p.og.warnings },
+    unlock: `Free preview of your URL. Pay and retry for the itemized problems, warnings, full og/twitter meta, and og:image verification.`,
+  })),
+  "GET /api/seo/head-check": previewFromQuery((p) => ({
+    preview: { url: p.url, verdict: p.head.verdict, problems_found: p.head.problems },
+    unlock: `Free preview of your URL. Pay and retry for the itemized problems plus title, description, canonical, hreflang, and robots details.`,
+  })),
+  "GET /api/seo/alt-check": previewFromQuery((p) => ({
+    preview: { url: p.url, images_total: p.alt.images_total, missing_alt: p.alt.missing_alt },
+    unlock: `Free preview of your URL. Pay and retry for the per-image issue list.`,
+  })),
+};
+
+// Build the per-route 402 responder: optional preview + the campaign line.
+function makeUnpaidResponder(key) {
+  const previewer = PREVIEWERS[key];
+  return async (ctx) => {
+    let extra = null;
+    if (previewer) {
+      try { extra = await previewer(ctx); } catch { extra = null; }
+    }
+    return {
+      contentType: "application/json",
+      body: { ...(extra || {}), agent_tip: currentCampaign().agent_tip },
+    };
+  };
+}
 
 // Helper to build a paid route entry, optionally with Bazaar discovery metadata.
 // The `_doc` property is stripped before the config reaches paymentMiddleware;
@@ -127,7 +217,6 @@ const UNPAID_FOOTER = {
 const paid = (price, description, disc) => ({
   accepts: { scheme: "exact", price, network: NETWORK, payTo: PAY_TO },
   description,
-  unpaidResponseBody: () => UNPAID_FOOTER,
   ...(disc?.ext && Object.keys(disc.ext).length ? { extensions: disc.ext } : {}),
   _doc: { price, opts: disc?.docOpts || null },
 });
@@ -1124,6 +1213,8 @@ for (const [key, cfg] of Object.entries(PAID_ROUTES)) {
     mimeType: "application/json",
     tags: [apiCategory(path)],
     ...clean,
+    // 402 body: free preview (where supported) + the rotating campaign line.
+    unpaidResponseBody: makeUnpaidResponder(key),
   };
   API_REGISTRY.push({ method, path, price: _doc?.price, description: cfg.description, opts: _doc?.opts || {} });
 }
