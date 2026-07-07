@@ -4,6 +4,8 @@
 
 How it works: send an ordinary HTTP request to any endpoint at `https://api.webbersites.com`. The server replies `402 Payment Required` with a machine-readable payment requirement (amount, asset, network, pay-to address). Sign a USDC transfer authorization for that amount (EIP-3009, no gas needed from you), retry the same request with the signed payload in the `X-PAYMENT` header, and the response arrives with your data while settlement happens on-chain. Prices range from $0.001 to $0.009 per call — micro-priced lookups at the bottom, finished multi-part deliverables (whole-site audit, brand kit, multi-page site) at the top. Network: Base mainnet (`eip155:8453`), asset: USDC.
 
+Rewards: any purchase over $0.001 opens a 24-hour window in which every $0.001 endpoint costs $0.0005 for your wallet — claim by adding header `X-Wallet: 0xYourAddress` (or `?wallet=`) to the request; the 402 quote reflects the discount automatically.
+
 The machine-readable catalog of every endpoint, price, and payment requirement is always current at the discovery URL below — agents should treat it as the source of truth.
 
 ## Discovery

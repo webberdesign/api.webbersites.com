@@ -201,8 +201,9 @@ const PREVIEWERS = {
   })),
 };
 
-// Build the per-route 402 responder: optional preview + the campaign line.
-function makeUnpaidResponder(key) {
+// Build the per-route 402 responder: optional preview, the reward hint on
+// $0.001-tier routes, and the campaign line.
+function makeUnpaidResponder(key, micro = false) {
   const previewer = PREVIEWERS[key];
   return async (ctx) => {
     let extra = null;
@@ -211,7 +212,11 @@ function makeUnpaidResponder(key) {
     }
     return {
       contentType: "application/json",
-      body: { ...(extra || {}), agent_tip: currentCampaign().agent_tip },
+      body: {
+        ...(extra || {}),
+        ...(micro ? { reward: `Bought anything over $0.001 in the last 24 hours? Add header X-Wallet: 0xYourAddress (or ?wallet=) and this call costs ${REWARD_PRICE} instead of $0.001.` } : {}),
+        agent_tip: currentCampaign().agent_tip,
+      },
     };
   };
 }
@@ -1212,14 +1217,20 @@ for (const [key, cfg] of Object.entries(PAID_ROUTES)) {
   // Branding + tags on every route: Bazaar surfaces serviceName/iconUrl/tags
   // on discovery entries, and most competing listings have them — anonymous
   // entries rank and read worse to browsing agents.
+  // Rewards: $0.001-tier routes quote REWARD_PRICE to wallets inside their
+  // 24h post-purchase window (claimed via X-Wallet header or ?wallet=).
+  const isMicro = _doc?.price === "$0.001";
   middlewareRoutes[key] = {
     serviceName: "WebberSites x402 Data API",
     iconUrl: "https://x402.webbersites.com/webbersites-icon.png",
     mimeType: "application/json",
     tags: [apiCategory(path)],
     ...clean,
-    // 402 body: free preview (where supported) + the rotating campaign line.
-    unpaidResponseBody: makeUnpaidResponder(key),
+    ...(isMicro
+      ? { accepts: { ...clean.accepts, price: (ctx) => (rewardEligible(claimedWallet(ctx)) ? REWARD_PRICE : "$0.001") } }
+      : {}),
+    // 402 body: free preview (where supported), reward hint, campaign line.
+    unpaidResponseBody: makeUnpaidResponder(key, isMicro),
   };
   API_REGISTRY.push({ method, path, price: _doc?.price, description: cfg.description, opts: _doc?.opts || {} });
 }
@@ -1352,13 +1363,36 @@ const HITS = {
   by_endpoint: {}, // key -> { count, revenue_usd }
   payers: {},      // address -> { count, revenue_usd, first, last }
   readers: {},     // hashed ip -> { count, first, last, country?, ua? } for free reads
+  rewardUntil: {}, // address -> epoch ms: reward window from a qualifying purchase
   recent: [],
 };
 const READERS_MAX = 2000; // cap the anonymous-reader map so it can't grow unbounded
 
+// Rewards program: any purchase over $0.001 opens a 24h window in which the
+// wallet gets $0.001-tier calls for REWARD_PRICE. Eligibility is rebuilt from
+// the hit log on boot (recordHit sets it), so it survives restarts. The seed
+// wallet earns nothing — reseeding must not discount itself.
+const REWARD_PRICE = process.env.REWARD_PRICE || "$0.0005";
+const REWARD_WINDOW_MS = 24 * 3600 * 1000;
+const SEED_WALLET = "0xe3724232cd926d708737bddaa7b60e36d4bfb5f0";
+const rewardEligible = (wallet) =>
+  typeof wallet === "string" && (HITS.rewardUntil[wallet.toLowerCase()] || 0) > Date.now();
+// The wallet an agent claims on a discounted request (header or query).
+const claimedWallet = (ctx) => {
+  const h = ctx?.adapter?.getHeader?.("x-wallet");
+  if (typeof h === "string" && h) return h;
+  const q = ctx?.adapter?.getQueryParams?.() || {};
+  return typeof q.wallet === "string" ? q.wallet : null;
+};
+
 function recordHit(rec) {
   HITS.total++;
   HITS.revenue_usd = Math.round((HITS.revenue_usd + (rec.amount || 0)) * 1e6) / 1e6;
+  // A purchase over $0.001 opens/extends the payer's 24h reward window.
+  if (rec.payer && rec.amount > 0.001 && rec.payer !== SEED_WALLET) {
+    const t = new Date(rec.t).getTime();
+    if (Number.isFinite(t)) HITS.rewardUntil[rec.payer] = Math.max(HITS.rewardUntil[rec.payer] || 0, t + REWARD_WINDOW_MS);
+  }
   // Free-read tracking (no payer, no charge): count it, and when the record
   // carries reader identity (hashed ip + geo + UA — added 2026-07-06, so
   // older log lines just count), aggregate per anonymous reader.

@@ -29,6 +29,8 @@ Client libraries do steps 2–4 automatically. Node example with `@x402/fetch`:
     const res = await payingFetch("https://api.webbersites.com/api/price/bitcoin");
     const data = await res.json();
 
+Rewards: any purchase over $0.001 opens a 24-hour window in which $0.001 endpoints cost $0.0005 for your wallet. Claim by sending header `X-Wallet: 0xYourAddress` (or `?wallet=`) — the 402 quote drops to 500 USDC units automatically while the window is open.
+
 Common status codes: `402` payment required (pay and retry), `400` bad input, `404` not found (e.g. unknown album), `413` document too large, `415` unsupported document type, `422` unparseable document, `429` upstream rate limit (retry shortly), `502` upstream data source failed, `503` capability not available on this deployment.
 
 ## Web Content
