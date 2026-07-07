@@ -25,6 +25,24 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function money($n) { return '$' . number_format((float)$n, 3); }
 function shortAddr($a) { return strlen($a) > 12 ? substr($a, 0, 8) . '…' . substr($a, -4) : $a; }
 
+// Eastern-time render of an ISO UTC timestamp: "7/6/2026 5:20 PM EST/EDT".
+function est($iso) {
+  try {
+    $d = new DateTime($iso);
+    $d->setTimezone(new DateTimeZone('America/New_York'));
+    return $d->format('n/j/Y g:i A T');
+  } catch (Exception $e) { return (string)$iso; }
+}
+// Relative age: "just now", "3 min. ago", "5 hr. ago", "2 days ago".
+function ago($iso) {
+  try { $s = time() - (new DateTime($iso))->getTimestamp(); } catch (Exception $e) { return ''; }
+  if ($s < 60) return 'just now';
+  if ($s < 3600) return floor($s / 60) . ' min. ago';
+  if ($s < 86400) return floor($s / 3600) . ' hr. ago';
+  $d = floor($s / 86400);
+  return $d . ($d == 1 ? ' day' : ' days') . ' ago';
+}
+
 $stats = null; $fetchErr = null;
 if ($authed) {
   $ch = curl_init(STATS_URL . '?key=' . urlencode(STATS_KEY));
@@ -153,6 +171,35 @@ $organicPayers  = $stats ? max(0, ($stats['unique_payers'] ?? 0) - ($seedRow ? 1
       <div class="tile"><b><?= (int)($stats['free_reads'] ?? 0) ?></b><span>free board reads</span></div>
     </div>
 
+    <div class="card">
+      <?php
+        $recent = $stats['recent'] ?? [];
+        $hiddenBoard = 0;
+        if (!$showBoard) {
+          $keep = [];
+          foreach ($recent as $r) {
+            if (($r['endpoint'] ?? '') === 'GET /api/board' && empty($r['payer'])) $hiddenBoard++;
+            else $keep[] = $r;
+          }
+          $recent = $keep;
+        }
+      ?>
+      <h2>Recent calls<?= $hiddenBoard ? ' · ' . $hiddenBoard . ' board reads hidden' : '' ?></h2>
+      <table>
+        <tr><th>when (eastern)</th><th>ago</th><th>endpoint</th><th>payer</th><th class="num">amount</th></tr>
+        <?php foreach ($recent as $r):
+          $payer = $r['payer'] ?? null; ?>
+        <tr>
+          <td><?= h(est($r['t'] ?? '')) ?></td>
+          <td class="free"><?= h(ago($r['t'] ?? '')) ?></td>
+          <td><?= h($r['endpoint'] ?? '') ?></td>
+          <td><?php if ($payer): ?><a class="addr" href="https://basescan.org/address/<?= h($payer) ?>" target="_blank" rel="noopener"><?= h(shortAddr($payer)) ?></a><?php else: ?><span class="free">—</span><?php endif; ?></td>
+          <td class="num"><?= isset($r['amount']) ? money($r['amount']) : '<span class="free">free</span>' ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+    </div>
+
     <?php $br = $stats['board_readers'] ?? null; if ($br && ($br['unique_readers'] ?? 0) > 0): ?>
     <div class="card">
       <h2>Board readers — the free audience (<?= (int)$br['unique_readers'] ?> unique)</h2>
@@ -209,33 +256,6 @@ $organicPayers  = $stats ? max(0, ($stats['unique_payers'] ?? 0) - ($seedRow ? 1
       </table>
     </div>
 
-    <div class="card">
-      <?php
-        $recent = $stats['recent'] ?? [];
-        $hiddenBoard = 0;
-        if (!$showBoard) {
-          $keep = [];
-          foreach ($recent as $r) {
-            if (($r['endpoint'] ?? '') === 'GET /api/board' && empty($r['payer'])) $hiddenBoard++;
-            else $keep[] = $r;
-          }
-          $recent = $keep;
-        }
-      ?>
-      <h2>Recent calls<?= $hiddenBoard ? ' · ' . $hiddenBoard . ' board reads hidden' : '' ?></h2>
-      <table>
-        <tr><th>time (utc)</th><th>endpoint</th><th>payer</th><th class="num">amount</th></tr>
-        <?php foreach ($recent as $r):
-          $payer = $r['payer'] ?? null; ?>
-        <tr>
-          <td><?= h(str_replace('T', ' ', substr($r['t'] ?? '', 0, 19))) ?></td>
-          <td><?= h($r['endpoint'] ?? '') ?></td>
-          <td><?php if ($payer): ?><a class="addr" href="https://basescan.org/address/<?= h($payer) ?>" target="_blank" rel="noopener"><?= h(shortAddr($payer)) ?></a><?php else: ?><span class="free">—</span><?php endif; ?></td>
-          <td class="num"><?= isset($r['amount']) ? money($r['amount']) : '<span class="free">free</span>' ?></td>
-        </tr>
-        <?php endforeach; ?>
-      </table>
-    </div>
   </div>
 <?php endif; ?>
 </body>
