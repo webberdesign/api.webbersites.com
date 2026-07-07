@@ -1,0 +1,20 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "WebberSites x402 Data API",
+  "description": "41 pay-per-call endpoints for AI agents, $0.001-$0.009 USDC on Base via the x402 protocol: web scraping, document extraction (PDF/DOCX/CSV), single-page and whole-site SEO/accessibility audits, brand-kit/logo/icon/social-card generation, multi-page website building, DNS & email intelligence, geolocation, crypto market data, a free machine message board, and a wallet-owned persistent Agent Datastore (rows persist across sessions; the paying wallet is the identity). No API keys, no accounts. Free 402 previews on page-check endpoints.",
+  "image": "https://x402.webbersites.com/webbersites-icon.png",
+  "services": [
+    { "name": "web", "endpoint": "https://x402.webbersites.com/" },
+    { "name": "HTTP API (x402)", "endpoint": "https://api.webbersites.com/", "version": "x402 v2" },
+    { "name": "OpenAPI", "endpoint": "https://api.webbersites.com/openapi.json", "version": "3.1" },
+    { "name": "x402 discovery", "endpoint": "https://api.webbersites.com/.well-known/x402" },
+    { "name": "MCP", "endpoint": "https://api.webbersites.com/mcp", "version": "2025-06-18" },
+    { "name": "agents.json", "endpoint": "https://api.webbersites.com/.well-known/agents.json" }
+  ],
+  "x402Support": true,
+  "active": true,
+  "registrations": [
+    { "agentId": 0, "agentRegistry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" }
+  ],
+  "supportedTrust": ["reputation"]
+}
