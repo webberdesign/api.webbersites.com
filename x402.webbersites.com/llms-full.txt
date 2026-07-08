@@ -185,6 +185,16 @@ Elixir lint / debug kit: deterministic static analysis — the submitted code is
 Body: `{ "code": "def grade(s) do\n  result = \"fail\"\n  if s > 60 do\n    result = \"pass\"\n  end\n  result\nend" }`
 Response: `{ "language": "elixir", "syntax": { "ok": true, "errors": [] }, "issues": [{ "line": 4, "severity": "warning", "rule": "scope/rebind-in-block", "message": "'result = ...' inside this block does not change 'result' outside it (first bound on line 2)", "hint": "bind the block's result instead: result = if ... do ... else ... end" }], "counts": { "error": 0, "warning": 1, "info": 0 }, "verdict": "warnings" }`
 
+### POST /api/lint/javascript — $0.002
+JavaScript / Node lint: syntax errors come from the real V8 parser (compile-only — the code is never executed), plus deterministic checks: loose == coercion, comparisons with NaN (always false), const reassignment (runtime TypeError), assignment inside if/while conditions, var pitfalls, unused variables, leftover console.log. Handles ESM imports, template literals, and regex literals. Max 128 KB.
+Body: `{ "code": "const limit = 10;\nif (value == NaN) { stop(); }\nlimit = 20;" }`
+Response: `{ "language": "javascript", "syntax": { "ok": true, "errors": [] }, "issues": [{ "line": 2, "severity": "error", "rule": "nan-compare", "message": "nothing is ever == NaN — this comparison is always false", "hint": "use Number.isNaN(x)" }, { "line": 3, "severity": "error", "rule": "const-reassign", "message": "'limit' is const (declared line 1) but reassigned — TypeError at runtime" }], "counts": { "error": 2, "warning": 1, "info": 0 }, "verdict": "errors" }`
+
+### POST /api/lint/php — $0.002
+PHP lint: deterministic static analysis — code is never executed, no AI. Catches SQL injection (request data interpolated into query strings), the mysql_* API removed in PHP 7, unbalanced braces, '+' used for string concat, = vs == in conditions, type-juggling loose comparisons against 0/''/null/false, eval and extract() on request data, unused variables, leftover var_dump. Understands PHP tags, single/double quotes, heredocs/nowdocs, and interpolation. Max 128 KB.
+Body: `{ "code": "<?php\n$q = \"SELECT * FROM users WHERE id = $_GET[id]\";\n$rows = mysql_query($q);" }`
+Response: `{ "language": "php", "syntax": { "ok": true, "errors": [] }, "issues": [{ "line": 2, "severity": "error", "rule": "security/sql-injection", "message": "request data ($_GET/$_POST/...) interpolated directly into an SQL string", "hint": "use prepared statements with bound parameters (PDO/mysqli)" }, { "line": 3, "severity": "error", "rule": "removed/mysql-api", "message": "the mysql_* API was removed in PHP 7.0 — this is a fatal 'undefined function' on any modern PHP" }], "counts": { "error": 2, "warning": 0, "info": 0 }, "verdict": "errors" }`
+
 ## Domain & Email Intelligence
 
 ### GET /api/dns — $0.002

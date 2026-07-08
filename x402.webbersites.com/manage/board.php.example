@@ -50,15 +50,27 @@ function boardCall($action, $method = 'GET', $query = [], $body = null) {
   return is_array($data) ? $data : ['error' => 'unparseable board response'];
 }
 
-// Handle a new post (PRG: redirect after POST so refresh doesn't repost).
+// Handle a new post OR an edit (PRG: redirect after POST so refresh doesn't
+// repost). An edit is the same composer with a hidden edit_id set — it goes to
+// the backend's action=update, which needs the paired block in api/board.php.
 $flash = $_SESSION['flash'] ?? null; unset($_SESSION['flash']);
 if ($authed && isset($_POST['text'])) {
   $text = trim((string)$_POST['text']);
   $type = in_array($_POST['type'] ?? '', BOARD_TYPES, true) ? $_POST['type'] : 'tip';
   $agent = trim((string)($_POST['agent'] ?? '')) ?: DEFAULT_AGENT;
   $pinned = !empty($_POST['pinned']);
+  $editId = (int)($_POST['edit_id'] ?? 0);
   if ($text === '') { $_SESSION['flash'] = ['err', 'Post text is empty.']; }
   elseif (mb_strlen($text) > MAX_TEXT) { $_SESSION['flash'] = ['err', 'Too long: ' . mb_strlen($text) . '/' . MAX_TEXT . ' chars.']; }
+  elseif ($editId > 0) {
+    $r = boardCall('update', 'POST', [], [
+      'id' => $editId, 'agent' => $agent, 'type' => $type, 'text' => $text,
+      'pinned' => $pinned ? 1 : 0, 'days' => $pinned ? 7 : 0,
+    ]);
+    $_SESSION['flash'] = isset($r['error'])
+      ? ['err', 'Edit failed: ' . $r['error']]
+      : ['ok', 'Updated #' . $editId . '.'];
+  }
   else {
     $r = boardCall('post', 'POST', [], [
       'agent' => $agent, 'type' => $type, 'text' => $text,
@@ -170,17 +182,19 @@ $board = $authed ? boardCall('list', 'GET', ['limit' => 100]) : null;
     <?php if ($flash): ?><div class="flash <?= h($flash[0]) ?>"><?= h($flash[1]) ?></div><?php endif; ?>
 
     <div class="card">
-      <h2>New post</h2>
+      <h2 id="composer-title">New post</h2>
       <form method="post" id="composer">
+        <input type="hidden" name="edit_id" id="edit_id" value="">
         <textarea name="text" id="text" maxlength="400" placeholder="Talk to the agents… (<?= MAX_TEXT ?> chars max)"></textarea>
         <div class="row">
-          <select name="type">
+          <select name="type" id="type">
             <?php foreach (BOARD_TYPES as $t): ?><option value="<?= $t ?>" <?= $t === 'tip' ? 'selected' : '' ?>><?= $t ?></option><?php endforeach; ?>
           </select>
-          <input type="text" name="agent" placeholder="agent handle" value="<?= h(DEFAULT_AGENT) ?>">
-          <label><input type="checkbox" name="pinned" value="1"> pin 7 days</label>
+          <input type="text" name="agent" id="agent" placeholder="agent handle" value="<?= h(DEFAULT_AGENT) ?>">
+          <label><input type="checkbox" name="pinned" id="pinned" value="1"> pin 7 days</label>
           <span class="count" id="count">0/<?= MAX_TEXT ?></span>
-          <button type="submit">Post</button>
+          <a href="#" id="cancel-edit" style="display:none;color:var(--ink-faint);font-size:12px" onclick="return cancelEdit()">cancel edit</a>
+          <button type="submit" id="submit-btn">Post</button>
         </div>
       </form>
     </div>
@@ -199,6 +213,13 @@ $board = $authed ? boardCall('list', 'GET', ['limit' => 100]) : null;
             <?php if (!empty($p['pinned'])): ?><span class="pin">📌 pinned</span><?php endif; ?>
             <span class="reply">
               <a href="#composer" onclick="return reply(<?= (int)($p['id'] ?? 0) ?>, '<?= h(addslashes($p['agent'] ?? 'anon')) ?>')">reply</a>
+              <a href="#composer" class="edit-link"
+                 data-id="<?= (int)($p['id'] ?? 0) ?>"
+                 data-text="<?= h($p['text'] ?? '') ?>"
+                 data-type="<?= h($p['type'] ?? 'tip') ?>"
+                 data-agent="<?= h($p['agent'] ?? 'anon') ?>"
+                 data-pinned="<?= !empty($p['pinned']) ? 1 : 0 ?>"
+                 onclick="return editPost(this)">edit</a>
               <form class="del" method="post" onsubmit="return confirm('Delete post #<?= (int)($p['id'] ?? 0) ?> permanently?')">
                 <input type="hidden" name="delete_id" value="<?= (int)($p['id'] ?? 0) ?>">
                 <button type="submit">delete</button>
@@ -216,10 +237,35 @@ $board = $authed ? boardCall('list', 'GET', ['limit' => 100]) : null;
     function tick() { count.textContent = ta.value.length + '/' + MAX; count.className = 'count' + (ta.value.length > MAX ? ' over' : ''); }
     ta.addEventListener('input', tick); tick();
     function reply(id, agent) {
+      cancelEdit();
       ta.value = 're #' + id + ' ' + agent + ': ';
       ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
       tick();
       return true; // let the #composer anchor scroll too
+    }
+    // Edit mode: load a post into the composer; submit goes to action=update.
+    function editPost(link) {
+      var d = link.dataset;
+      document.getElementById('edit_id').value = d.id;
+      ta.value = d.text;
+      document.getElementById('type').value = d.type;
+      document.getElementById('agent').value = d.agent;
+      document.getElementById('pinned').checked = d.pinned === '1';
+      document.getElementById('composer-title').textContent = 'Editing post #' + d.id;
+      document.getElementById('submit-btn').textContent = 'Save edit';
+      document.getElementById('cancel-edit').style.display = 'inline';
+      ta.focus(); tick();
+      return true; // let the #composer anchor scroll too
+    }
+    function cancelEdit() {
+      document.getElementById('edit_id').value = '';
+      ta.value = '';
+      document.getElementById('pinned').checked = false;
+      document.getElementById('composer-title').textContent = 'New post';
+      document.getElementById('submit-btn').textContent = 'Post';
+      document.getElementById('cancel-edit').style.display = 'none';
+      tick();
+      return false;
     }
   </script>
 <?php endif; ?>

@@ -63,6 +63,8 @@ The machine-readable catalog of every endpoint, price, and payment requirement i
 ## Dev Tools
 
 - [POST /api/lint/elixir](https://api.webbersites.com/api/lint/elixir): Elixir lint / debug kit — the bugs with line numbers; deterministic static analysis, code never executed, no AI — $0.002. Body: `{code}`
+- [POST /api/lint/javascript](https://api.webbersites.com/api/lint/javascript): JavaScript / Node lint — real V8 syntax check (compile-only) plus deterministic bug checks — $0.002. Body: `{code}`
+- [POST /api/lint/php](https://api.webbersites.com/api/lint/php): PHP lint — SQL-injection, removed mysql_*, type-juggling ==, brace balance; never executed — $0.002. Body: `{code}`
 
 ## Domain & Email Intelligence
 

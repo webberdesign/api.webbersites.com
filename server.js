@@ -14,6 +14,8 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { lintElixir } from "./elixir-lint.mjs";
+import { lintJavascript } from "./js-lint.mjs";
+import { lintPhp } from "./php-lint.mjs";
 
 // ----------------------------------------------------------------------------
 // Config
@@ -1060,6 +1062,50 @@ const PAID_ROUTES =
                 verdict: { type: "string" },
               },
             },
+          },
+        })
+      ),
+      "POST /api/lint/javascript": paid(
+        "$0.002",
+        "JavaScript / Node lint: POST {code}, get the bugs back with line numbers. Syntax errors come from the real V8 parser (compile-only — code is never executed), plus deterministic checks: loose == coercion, assignment in conditions, comparisons with NaN, const reassignment (runtime TypeError), var pitfalls, unused variables, leftover console.log. Handles ESM imports, template literals, regex. No AI. Max 128 KB.",
+        discovery({
+          bodyType: "json",
+          input: { code: "const limit = 10;\nif (value == NaN) { stop(); }\nlimit = 20;" },
+          inputSchema: {
+            properties: { code: { type: "string", description: "JavaScript/Node source to lint, max 128 KB" } },
+            required: ["code"],
+          },
+          output: {
+            example: {
+              language: "javascript",
+              syntax: { ok: true, errors: [] },
+              issues: [{ line: 2, severity: "error", rule: "nan-compare", message: "nothing is ever == NaN — this comparison is always false", hint: "use Number.isNaN(x)" }],
+              counts: { error: 2, warning: 0, info: 0 },
+              verdict: "errors",
+            },
+            schema: { properties: { language: { type: "string" }, syntax: { type: "object" }, issues: { type: "array" }, counts: { type: "object" }, verdict: { type: "string" } } },
+          },
+        })
+      ),
+      "POST /api/lint/php": paid(
+        "$0.002",
+        "PHP lint: POST {code}, get the bugs back with line numbers. Deterministic static analysis — code is never executed, no AI. Catches SQL injection (request data interpolated into query strings), the removed mysql_* API, unbalanced braces, '+' string concat, = vs == in conditions, type-juggling loose comparisons, eval/extract on request data, unused variables, leftover var_dump. Understands PHP tags, heredocs, interpolation. Max 128 KB.",
+        discovery({
+          bodyType: "json",
+          input: { code: "<?php\n$q = \"SELECT * FROM users WHERE id = $_GET[id]\";\n$rows = mysql_query($q);" },
+          inputSchema: {
+            properties: { code: { type: "string", description: "PHP source to lint, max 128 KB" } },
+            required: ["code"],
+          },
+          output: {
+            example: {
+              language: "php",
+              syntax: { ok: true, errors: [] },
+              issues: [{ line: 2, severity: "error", rule: "security/sql-injection", message: "request data ($_GET/$_POST/...) interpolated directly into an SQL string", hint: "use prepared statements with bound parameters (PDO/mysqli)" }],
+              counts: { error: 2, warning: 0, info: 0 },
+              verdict: "errors",
+            },
+            schema: { properties: { language: { type: "string" }, syntax: { type: "object" }, issues: { type: "array" }, counts: { type: "object" }, verdict: { type: "string" } } },
           },
         })
       ),
@@ -4721,10 +4767,10 @@ app.get("/", (_req, res) => {
   res.set("Access-Control-Allow-Origin", "*"); // allow the marketing page to pull this live
   res.json({
     service: "x402-data-api",
-    build: "2026-07-08-elixir-lint-v1", // bump when deploying; verify with: curl -s https://api.webbersites.com/ | grep -o 'build[^,]*'
+    build: "2026-07-08-lint-family-v1", // bump when deploying; verify with: curl -s https://api.webbersites.com/ | grep -o 'build[^,]*'
     website: "https://x402.webbersites.com",
     description:
-      "Pay-per-call data & utility API for AI agents: web scraping, page summaries, IP geolocation, timezone lookup, crypto prices & market reports, schema.org structured-data audits, and deterministic code lint (Elixir). USDC on Base via x402.",
+      "Pay-per-call data & utility API for AI agents: web scraping, page summaries, IP geolocation, timezone lookup, crypto prices & market reports, schema.org structured-data audits, and deterministic code lint (Elixir, JavaScript, PHP). USDC on Base via x402.",
     payment: { protocol: "x402", network: NETWORK, asset: "USDC" },
     endpoints: [
       { method: "GET", path: "/api/price/:coin", price: "$0.001", note: "e.g. /api/price/bitcoin" },
@@ -4736,6 +4782,8 @@ app.get("/", (_req, res) => {
       { method: "POST", path: "/api/schema/audit", price: "$0.005", note: "POST {url} or {jsonld}" },
       { method: "POST", path: "/api/schema/generate", price: "$0.005", note: "POST {type, fields} → valid JSON-LD" },
       { method: "POST", path: "/api/lint/elixir", price: "$0.002", note: "POST {code} → the bugs, with line numbers. Deterministic Elixir lint — parsed, never executed, no AI" },
+      { method: "POST", path: "/api/lint/javascript", price: "$0.002", note: "POST {code} → the bugs, with line numbers. Real V8 syntax check (compile-only) + deterministic JS/Node checks" },
+      { method: "POST", path: "/api/lint/php", price: "$0.002", note: "POST {code} → the bugs, with line numbers. Deterministic PHP lint incl. SQL-injection and mysql_* checks" },
       { method: "GET", path: "/api/dns", price: "$0.002", note: "e.g. /api/dns?domain=example.com" },
       { method: "GET", path: "/api/email/verify", price: "$0.002", note: "e.g. /api/email/verify?email=user@example.com" },
       { method: "GET", path: "/api/og/check", price: "$0.001", note: "e.g. /api/og/check?url=https://example.com" },
@@ -5063,24 +5111,37 @@ app.get("/api/timezone", (req, res) => {
 });
 
 // ----------------------------------------------------------------------------
-// PAID: Elixir lint / debug kit. Deterministic static analysis in pure JS —
-// the submitted code is tokenized and pattern-checked, never executed (Elixir
-// compilation runs macros, so even compiling untrusted code would be code
-// execution; this never goes there). First of the /api/lint/:language family.
+// PAID: lint / debug kits. Deterministic static analysis in pure JS — the
+// submitted code is parsed and pattern-checked, never executed (JS syntax is
+// V8 compile-only; Elixir/PHP are tokenized — compiling either can run code,
+// so this never goes there). Only canonical names are in the payment map;
+// anything else 404s here so no alias slips past the paywall.
 // ----------------------------------------------------------------------------
 const LINT_MAX_BYTES = 128 * 1024;
-app.post("/api/lint/elixir", (req, res) => {
+const LINTERS = { elixir: lintElixir, javascript: lintJavascript, php: lintPhp };
+const LINT_ALIASES = { js: "javascript", node: "javascript", nodejs: "javascript", ex: "elixir", exs: "elixir", php8: "php" };
+app.post("/api/lint/:language", (req, res) => {
   try {
+    const lang = String(req.params.language || "").toLowerCase();
+    const linter = LINTERS[lang];
+    if (!linter) {
+      const canonical = LINT_ALIASES[lang];
+      return res.status(404).json({
+        error: `no linter for '${lang}'`,
+        ...(canonical ? { hint: `use POST /api/lint/${canonical}` } : {}),
+        supported: Object.keys(LINTERS),
+      });
+    }
     const code = typeof req.body?.code === "string" ? req.body.code : null;
     if (!code || !code.trim()) {
-      return res.status(400).json({ error: "provide 'code' (Elixir source) in the JSON body" });
+      return res.status(400).json({ error: `provide 'code' (${lang} source) in the JSON body` });
     }
     if (Buffer.byteLength(code, "utf8") > LINT_MAX_BYTES) {
       return res.status(400).json({ error: "code too large (max 128 KB)" });
     }
-    const report = lintElixir(code);
+    const report = linter(code);
     res.json({
-      language: "elixir",
+      language: lang,
       engine: "webbersites-lint/1.0 (deterministic static analysis; code is never executed)",
       ...report,
       ts: new Date().toISOString(),
