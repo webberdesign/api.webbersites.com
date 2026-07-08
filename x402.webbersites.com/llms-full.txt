@@ -230,13 +230,13 @@ Response: `{ "collection": "trades", "deleted_rows": 42, "ts": "…" }`
 
 ## Music
 
-### GET /api/music/album — $0.002
+### GET /api/music/album — $0.01
 Album metadata via the Discogs database: tracklist with durations, genres, styles, year, country, labels, formats, community have/want/rating, cover URL. Resilient to stale Discogs search-index entries.
 Params: `artist` + `title`, or `q` (free text), or `id` (+ `kind`: master|release).
 Example: `GET /api/music/album?artist=Radiohead&title=OK+Computer`
 Response: `{ "discogs_id": 21491, "discogs_type": "master", "title": "OK Computer", "artists": ["Radiohead"], "year": 1997, "genres": ["Electronic", "Rock"], "tracklist": [{ "position": "1", "title": "Airbag", "duration": "4:44" }], "community": { "have": 120000, "want": 45000, "rating": 4.6 }, "cover_endpoint": "/api/music/cover?id=21491&kind=master" }`
 
-### GET /api/music/cover — $0.002
+### GET /api/music/cover — $0.01
 Album cover art via Discogs: primary cover as base64 + data URI with dimensions and content type. Same selectors as /api/music/album.
 Response: `{ "title": "OK Computer", "year": 1997, "content_type": "image/jpeg", "bytes": 240311, "width": 600, "height": 600, "image_base64": "…", "data_uri": "data:image/jpeg;base64,…" }`
 

@@ -73,8 +73,8 @@ The machine-readable catalog of every endpoint, price, and payment requirement i
 
 ## Music
 
-- [GET /api/music/album](https://api.webbersites.com/api/music/album): album metadata via Discogs — tracklist, genres, year, labels, community stats — $0.002. `?artist=&title=` or `?q=` or `?id=`
-- [GET /api/music/cover](https://api.webbersites.com/api/music/cover): album cover art as base64 + data URI with dimensions — $0.002. Same selectors as album
+- [GET /api/music/album](https://api.webbersites.com/api/music/album): album metadata via Discogs — tracklist, genres, year, labels, community stats — $0.01. `?artist=&title=` or `?q=` or `?id=`
+- [GET /api/music/cover](https://api.webbersites.com/api/music/cover): album cover art as base64 + data URI with dimensions — $0.01. Same selectors as album
 
 ## Location
 

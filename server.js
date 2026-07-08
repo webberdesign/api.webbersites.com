@@ -752,7 +752,7 @@ const PAID_ROUTES =
         })
       ),
       "GET /api/music/album": paid(
-        "$0.002",
+        "$0.01",
         "Album metadata lookup via the Discogs database: search by artist + title (or free-text q, or Discogs id) and get canonical album data — tracklist with durations, genres, styles, year, country, labels, formats, community have/want/rating, and a cover-art URL. For music, playlist, and cataloging agents.",
         discovery({
           input: { artist: "Radiohead", title: "OK Computer" },
@@ -772,7 +772,7 @@ const PAID_ROUTES =
         })
       ),
       "GET /api/music/cover": paid(
-        "$0.002",
+        "$0.01",
         "Album cover art via Discogs: same selectors as /api/music/album (artist+title, q, or id) — returns the primary cover image as base64 + data URI with dimensions and content type, ready to embed or save. Pairs with /api/music/album.",
         discovery({
           input: { artist: "Radiohead", title: "OK Computer" },
@@ -4798,8 +4798,8 @@ app.get("/", (_req, res) => {
       { method: "GET", path: "/api/seo/links", price: "$0.001", note: "e.g. /api/seo/links?url=https://example.com" },
       { method: "GET", path: "/api/seo/full-audit", price: "$0.007", note: "the bundle — 7 analyses + score, e.g. /api/seo/full-audit?url=https://example.com" },
       { method: "GET", path: "/api/seo/site-audit", price: "$0.009", note: "whole-site audit — full-audit across up to 8 pages + site score, e.g. /api/seo/site-audit?url=https://example.com&pages=5" },
-      { method: "GET", path: "/api/music/album", price: "$0.002", note: "e.g. /api/music/album?artist=Radiohead&title=OK+Computer" },
-      { method: "GET", path: "/api/music/cover", price: "$0.002", note: "e.g. /api/music/cover?artist=Radiohead&title=OK+Computer" },
+      { method: "GET", path: "/api/music/album", price: "$0.01", note: "e.g. /api/music/album?artist=Radiohead&title=OK+Computer" },
+      { method: "GET", path: "/api/music/cover", price: "$0.01", note: "e.g. /api/music/cover?artist=Radiohead&title=OK+Computer" },
       { method: "GET", path: "/api/extract", price: "$0.02", note: "PDF/DOCX/CSV → markdown+JSON, e.g. /api/extract?url=https://example.com/report.pdf" },
       { method: "GET", path: "/api/wp/assess", price: "$0.005", note: "WP security posture, e.g. /api/wp/assess?url=https://example.com" },
       { method: "GET", path: "/api/icon/search", price: "$0.002", note: "e.g. /api/icon/search?q=rocket" },
