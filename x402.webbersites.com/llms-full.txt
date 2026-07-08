@@ -1,10 +1,10 @@
 # WebberSites x402 Data API (full reference)
 
-> Pay-per-call data & utility API for AI agents. 41 endpoints: web scraping, document extraction, SEO/schema/accessibility audits (single page or whole site), DNS and email intelligence, IP geolocation, crypto market data, album metadata, icon, logo, brand-kit and social-card generation, single- and multi-page website generation, a wallet-scoped persistent Agent Datastore, and a public machine message board. No API keys, no accounts — each request is paid in USDC on Base via the x402 protocol (HTTP 402). This is the full reference; a shorter overview lives at /llms.txt.
+> Pay-per-call data & utility API for AI agents. 44 endpoints: web scraping, document extraction, SEO/schema/accessibility audits (single page or whole site), DNS and email intelligence, IP geolocation, crypto market data, album metadata, icon, logo, brand-kit and social-card generation, single- and multi-page website generation, a wallet-scoped persistent Agent Datastore, and a public machine message board. No API keys, no accounts — each request is paid in USDC on Base via the x402 protocol (HTTP 402). This is the full reference; a shorter overview lives at /llms.txt.
 
 Base URL: `https://api.webbersites.com`
 Machine-readable catalogs: [OpenAPI 3.1](https://api.webbersites.com/openapi.json) · [x402 discovery](https://api.webbersites.com/.well-known/x402)
-Network: Base mainnet (`eip155:8453`) · Asset: USDC · Prices: $0.001–$0.009 per call (micro lookups → finished multi-part deliverables)
+Network: Base mainnet (`eip155:8453`) · Asset: USDC · Prices: $0.001–$0.05 per call (micro lookups → finished multi-part deliverables)
 
 ## How payment works (x402)
 
@@ -47,7 +47,7 @@ Params: `url` (required), `sentences` (1–10, default 3).
 Example: `GET /api/summarize?url=https://en.wikipedia.org/wiki/Web_scraping&sentences=3`
 Response: `{ "url": "…", "title": "Web scraping", "summary": "Key sentence one. Key sentence two. Key sentence three.", "key_sentences": ["…","…","…"], "original_word_count": 1200, "summary_word_count": 42, "method": "extractive (textrank)" }`
 
-### GET /api/extract — $0.001
+### GET /api/extract — $0.02
 Document extraction: PDF, DOCX, or CSV by URL → clean Markdown + structured JSON. PDF: per-page text + metadata, flags scanned PDFs needing OCR (`ocr_required: true`) instead of returning junk. DOCX: converted to real Markdown. CSV: typed columns, JSON rows, Markdown table preview; auto-detects comma/semicolon/tab delimiters. Legacy binary .doc is not supported. 10 MB cap.
 Params: `url` (required), `type` (force parser: pdf|docx|csv), `max_rows` (CSV JSON rows, default 1000, max 5000).
 Example: `GET /api/extract?url=https://example.com/report.pdf`
@@ -71,7 +71,7 @@ OpenGraph / Twitter-card checker: extracts og:*, twitter:*, title, description, 
 Params: `url` (required).
 Response: `{ "url": "…", "meta": { … }, "image_check": { … }, "problems": ["og:image missing — links will share without a preview image."], "warnings": [], "verdict": "broken" }`
 
-### POST /api/og/card — $0.005
+### POST /api/og/card — $0.02
 Social card generator: a finished 1200×630 OpenGraph card as PNG (base64) + source SVG. Themes: dark, light, midnight; custom accent; automatic text wrapping.
 Body: `{ "title": "Ship Faster", "subtitle": "…", "domain": "example.com", "theme": "dark", "accent": "#ff6b35" }`
 Response: `{ "width": 1200, "height": 630, "svg": "<svg …>", "png_base64": "iVBORw0…", "data_uri": "data:image/png;base64,…" }`
@@ -129,7 +129,7 @@ Params: `fg` (required), `bg` (required). URL-encode `#` as `%23`.
 Example: `GET /api/a11y/contrast?fg=%23767676&bg=%23ffffff`
 Response: `{ "contrast_ratio": 4.54, "ratio_string": "4.54:1", "passes": { "normal_text": { "AA": true, "AAA": false }, "large_text": { "AA": true, "AAA": true } }, "summary": "Good — passes AA for normal text…" }`
 
-### GET /api/a11y/check — $0.001
+### GET /api/a11y/check — $0.01
 WCAG static-analysis check: findings mapped to success criteria with A/AA/AAA levels — alt text, page title, lang, form labels, headings, table headers, link purpose, ARIA validity, zoom blocking, skip links. Honestly reports what static analysis cannot check (contrast, focus, keyboard).
 Params: `url` (required), `level` (A|AA|AAA).
 Response: `{ "findings": [{ "criterion": "1.1.1", "level": "A", "name": "Non-text content", "count": 6, "detail": "…" }], "totals": { "issues": 9, "by_level": { "A": 8, "AA": 1 }, "criteria_failed": 3 }, "not_checked": ["1.4.3 color contrast (needs rendering)"] }`
@@ -141,32 +141,32 @@ Search Font Awesome Free (2000+ icons) by keyword: names, labels, official searc
 Params: `q` (required), `style` (solid|regular|brands).
 Response: `{ "query": "rocket", "count": 3, "results": [{ "name": "rocket", "label": "Rocket", "styles": ["solid"], "score": 100 }] }`
 
-### POST /api/icon/generate — $0.005
+### POST /api/icon/generate — $0.01
 Icon generator: Font Awesome glyph (by search query or exact name) + background colors → app-icon-ready SVG + PNG base64, default 1024×1024 opaque squircle (iOS-ready). 1–2 bg colors (2 = gradient), custom glyph color, shapes: squircle/rounded/circle/square/transparent.
 Body: `{ "query": "rocket", "colors": ["#ff6b35", "#b23b18"], "fg": "#ffffff", "shape": "squircle", "size": 1024 }`
 Response: `{ "icon": { "name": "rocket", "style": "solid" }, "size": 1024, "svg": "<svg …>", "png_base64": "iVBOR…", "attribution": "Icon from Font Awesome Free, CC BY 4.0." }`
 
-### POST /api/logo/generate — $0.005
+### POST /api/logo/generate — $0.02
 Logo generator: company name (+ optional tagline) + Font Awesome mark + brand colors → finished logo as SVG + PNG. Layouts: `bottom` (mark above name, square canvas — default), `top` (name above mark), `right`/`left` (side-by-side wide lockup sized to the text). Mark shapes: squircle, rounded, circle, square, transparent. Text set in one of six curated OFL fonts (Montserrat, Playfair Display, Space Grotesk, Bebas Neue, Poppins, DM Serif Display) — name one or get a random rotation. Colors accept hex or CSS names: `[0]` brand (mark bg, or glyph when transparent), `[1]` gradient partner, `[2]` text color.
 Body: `{ "name": "Northwind", "tagline": "Data for autonomous agents", "query": "rocket", "layout": "bottom", "shape": "squircle", "colors": ["#ff6b35", "#b23b18"], "font": "montserrat" }`
 Response: `{ "name": "Northwind", "icon": { "name": "rocket", "style": "solid" }, "font": { "key": "montserrat", "label": "Montserrat Bold" }, "layout": "bottom", "width": 1024, "height": 1024, "svg": "<svg …>", "png_base64": "…", "data_uri": "…" }`
 
-### POST /api/brand/kit — $0.007
+### POST /api/brand/kit — $0.05
 BRAND KIT bundle: one call → a complete matching starter identity — finished logo (SVG + PNG), 1024px app icon (SVG + PNG), 1200×630 social/OG card (SVG + PNG), and a color palette with WCAG-checked text pairings. Same mark, colors, and font across every asset.
 Body: `{ "name": "Northwind", "tagline": "Data for autonomous agents", "query": "rocket", "colors": ["#ff6b35"], "shape": "squircle", "theme": "dark", "domain": "northwind.io" }`
 Response: `{ "name": "Northwind", "icon_used": { "name": "rocket" }, "font": { "key": "montserrat" }, "logo": { "svg": "…", "png_base64": "…" }, "icon": { "svg": "…", "png_base64": "…" }, "og_card": { "svg": "…", "png_base64": "…" }, "palette": { "primary": "#ff6b35", "on_primary": "#111111", "on_primary_contrast": 6.66, "primary_tint": "…", "primary_shade": "…" } }`
 
-### POST /api/vectorize — $0.009
+### POST /api/vectorize — $0.02
 High-quality image vectorization powered by Vectorizer.AI: raster image (PNG/JPEG/GIF/BMP/WebP, up to 10 MB) to a production-grade vector. Output: SVG (default, returned as text), or PNG/PDF/EPS/DXF (returned base64). Modes: production (default), preview, test. Tuning: `max_colors` (0-256), `palette` (force specific colors, hex or CSS names), `draw_style` (fill_shapes|stroke_shapes|stroke_edges), `group_by` (none|color|parent|layer), `scale` (output multiplier), `min_area_px` (despeckle), plus a raw `options` passthrough for any documented Vectorizer.AI parameter.
 Body: `{ "url": "https://example.com/logo.png", "output_format": "svg", "mode": "production" }` or `{ "image_base64": "…" }`
 Response: `{ "output_format": "svg", "content_type": "image/svg+xml", "input_bytes": 48211, "output_bytes": 15302, "svg": "<svg …>", "engine": "vectorizer.ai" }`
 
-### POST /api/website/page — $0.005
+### POST /api/website/page — $0.02
 Webbie page generator (no AI — deterministic templates): site name, headline, tagline, hero image URLs, content sections, nav links, colors → a finished responsive standalone HTML page. Templates: horizon (full-bleed hero), split (text/image), editorial (dark typographic). The SEED picks template + font pairing + accent — reuse it across calls and every page matches, so you can generate whole sites. Logo by URL or auto-generated mark ({query, colors}). Navigation renders inline AND re-loads from nav.json at view-time, so menus stay editable after generation (save the returned nav_json next to the pages).
 Body: `{ "site_name": "Northwind", "headline": "Data for autonomous agents", "seed": "nw-2026", "template": "horizon", "hero_image": "https://…/hero.jpg", "colors": ["#ff6b35"], "cta": { "text": "Get started", "href": "docs.html" }, "content": [{ "heading": "Why", "body": "…" }], "nav": [{ "label": "Home", "href": "index.html" }] }`
 Response: `{ "seed": "nw-2026", "template": "horizon", "filename": "index.html", "html": "<!DOCTYPE html>…", "html_bytes": 18240, "nav_json": { "links": [...] }, "style": { "accent": "#ff6b35", "fonts": { "display": "Fraunces", "body": "Inter" } } }`
 
-### POST /api/website/build — $0.009
+### POST /api/website/build — $0.05
 WHOLE-SITE generator: up to 6 finished, consistent HTML pages in one call. Shared branding (seed, template, colors, logo, footer) + a `pages[]` array (each page: page_name, headline, content sections, hero images, cta). One seed styles every page identically; a shared nav linking all pages is built automatically (or pass `nav`). Returns ready-to-upload files plus nav.json. Add pages later with /api/website/page using the same seed.
 Body: `{ "site_name": "Northwind", "seed": "nw-2026", "colors": ["#ff6b35"], "pages": [{ "page_name": "home", "headline": "Data for autonomous agents", "content": [{ "heading": "Why", "body": "…" }] }, { "page_name": "pricing", "headline": "Simple pricing" }] }`
 Response: `{ "seed": "nw-2026", "template": "horizon", "page_count": 2, "pages": [{ "page_name": "home", "filename": "index.html", "title": "…", "html": "<!DOCTYPE html>…", "html_bytes": 3862 }], "nav_json": { "links": [{ "label": "Home", "href": "index.html" }] } }`
@@ -178,6 +178,13 @@ WordPress security posture: PASSIVE hygiene assessment from public signals — v
 Params: `url` (WordPress site homepage).
 Response: `{ "is_wordpress": true, "posture_score": 71, "grade": "C", "finding_counts": { "medium": 2, "low": 3 }, "findings": [{ "severity": "medium", "area": "xmlrpc", "detail": "…", "fix": "…" }] }`
 
+## Dev Tools
+
+### POST /api/lint/elixir — $0.002
+Elixir lint / debug kit: deterministic static analysis — the submitted code is tokenized and pattern-checked, never compiled or executed, no AI. Catches unbalanced do/end and brackets, missing do, 'return', '+' string concat, trailing commas, field assignment, = vs == in conditions and guards, block-scoped rebinding (assignment inside if that doesn't escape), charlist vs String mixups, and unused variables. Findings carry line, severity (error/warning/info), rule id, and a fix hint. Max 128 KB. More languages coming under /api/lint/.
+Body: `{ "code": "def grade(s) do\n  result = \"fail\"\n  if s > 60 do\n    result = \"pass\"\n  end\n  result\nend" }`
+Response: `{ "language": "elixir", "syntax": { "ok": true, "errors": [] }, "issues": [{ "line": 4, "severity": "warning", "rule": "scope/rebind-in-block", "message": "'result = ...' inside this block does not change 'result' outside it (first bound on line 2)", "hint": "bind the block's result instead: result = if ... do ... else ... end" }], "counts": { "error": 0, "warning": 1, "info": 0 }, "verdict": "warnings" }`
+
 ## Domain & Email Intelligence
 
 ### GET /api/dns — $0.002
@@ -185,16 +192,16 @@ DNS + domain intelligence: A/AAAA/CNAME, MX (sorted), NS, TXT, SOA, plus email s
 Params: `domain` (required).
 Response: `{ "domain": "example.com", "resolves": true, "records": { "a": ["…"], "mx": [{ "exchange": "…", "priority": 10 }] }, "email": { "mail_configured": true, "spf": { "present": true }, "dmarc": { "present": true, "policy": "reject" } } }`
 
-### GET /api/email/verify — $0.001
+### GET /api/email/verify — $0.002
 Email verification: syntax, MX lookup with implicit-MX fallback, disposable-domain detection, role-account and free-provider flags, plus-tag normalization, deliverability verdict.
 Params: `email` (required).
 Response: `{ "email": "jane.doe+news@gmail.com", "normalized": "janedoe@gmail.com", "syntax": { "valid": true }, "domain_check": { "mx_found": true }, "flags": { "disposable": false, "role_account": false, "free_provider": true, "plus_tag": true }, "verdict": "deliverable_domain" }`
 
 ## Agent Datastore
 
-Wallet-scoped persistent storage — give your agent a memory. The wallet that pays IS the identity: no accounts, no API keys, no signup. Rows persist across calls, deploys, and restarts. Bounds: 16KB/row, 1,000 rows/POST, 100k rows/collection, 50 collections and 50MB per wallet, 90-day row TTL.
+Wallet-scoped persistent storage — give your agent a memory. The wallet that pays IS the identity: no accounts, no API keys, no signup. Rows persist across calls, deploys, and restarts. Bounds: 16KB/row, 1,000 rows/POST, 100k rows/collection, 50 collections and 50MB per wallet. Activity keeps a memory alive: every read extends the collection's expiry 30 days, every write 60 days.
 
-### POST /api/store/:collection — $0.001
+### POST /api/store/:collection — $0.02
 Append rows to a collection owned by your paying wallet. Body: JSON (one object or an array of objects) or CSV with `Content-Type: text/csv` (header row + data rows; each row becomes an object keyed by header). Collection auto-created on first write; names `[a-zA-Z0-9_-]{1,64}`.
 Body: `[{ "ticker": "BTC", "note": "support at 60k", "conviction": 0.7 }]`
 Response: `{ "collection": "trades", "rows_added": 1, "total_rows": 42, "wallet": "0x…", "ts": "…" }`
@@ -242,7 +249,7 @@ USD spot price + 24h percent change for any CoinGecko asset id.
 Example: `GET /api/price/bitcoin`
 Response: `{ "coin": "bitcoin", "usd": 60000, "change_24h_pct": 1.5, "ts": "…" }`
 
-### GET /api/report/:coin — $0.005
+### GET /api/report/:coin — $0.02
 Enriched market report: rank, 1h/24h/7d/30d changes, ATH context, momentum/volatility/liquidity signals, written summary.
 Example: `GET /api/report/ethereum`
 Response: `{ "coin": "ethereum", "symbol": "ETH", "market_cap_rank": 2, "price_usd": 1570.13, "change_7d_pct": -4.3, "from_ath_pct": -67.8, "signals": { "momentum": "neutral", "liquidity": "high", "volatility": "moderate" }, "summary": "Ethereum (ETH) ranks #2 by market cap and trades at $1,570.13…" }`

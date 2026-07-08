@@ -51,14 +51,19 @@ $PAGE_META = [
   'seo-nav'           => ['Navigation Extractor API',          "Extract a site's nav links, grouped by region"],
   'seo-links'         => ['Link Analyzer API',                 'Internal/external links, rel usage, anchor quality'],
   'seo-full-audit'    => ['Full On-Page SEO Audit API',        'Seven audits in one call with a 0-100 score'],
+  'seo-site-audit'    => ['Whole-Site SEO Audit API',          'The seven-part audit across up to 8 pages, per-page + site scores'],
   'a11y-contrast'     => ['WCAG Contrast Checker API',         'Exact contrast ratios with AA/AAA verdicts'],
   'a11y-check'        => ['Accessibility Check API',           'WCAG findings mapped to success criteria'],
   'icon-search'       => ['Icon Search API',                   'Search Font Awesome Free by keyword'],
   'icon-generate'     => ['App Icon Generator API',            'Icon-on-gradient 1024px PNG + SVG assets'],
   'logo-generate'     => ['Logo Generator API',                'Name + tagline + mark + colors, six fonts, SVG + PNG'],
   'vectorize'         => ['Image Vectorization API',           'Raster to production-quality SVG via Vectorizer.AI'],
-  'webbie-page'       => ['Webbie Page Generator API',         'Seeded templates: headline + images to finished HTML pages'],
+  'brand-kit'         => ['Brand Kit Generator API',           'Logo + app icon + social card + WCAG palette, one call'],
+  'website-page'      => ['Website Page Generator API',        'Seeded templates: headline + images to a finished HTML page'],
+  'website-build'     => ['Website Builder API',               'Up to 6 consistent HTML pages + shared nav in one call'],
+  'store'             => ['Agent Datastore API',               'Persistent memory for AI agents — the paying wallet is the identity'],
   'wp-assess'         => ['WordPress Security Posture API',    'Passive WP hygiene assessment with score'],
+  'lint-elixir'       => ['Elixir Lint API',                   'The bugs, with line numbers — deterministic, code never executed'],
   'dns'               => ['DNS & Email Security API',          'DNS records plus SPF, DMARC and DKIM posture'],
   'email-verify'      => ['Email Verification API',            'Syntax, MX, disposable and role-account checks'],
   'music-album'       => ['Album Metadata API',                'Tracklists, genres and years from Discogs'],
@@ -74,8 +79,10 @@ function category(string $p): string {
   if (preg_match('#^/api/(scrape|summarize|extract)#', $p)) return 'Web Content';
   if (preg_match('#^/api/(schema|og|seo)/#', $p)) return 'SEO & Publishing';
   if (preg_match('#^/api/a11y/#', $p)) return 'Accessibility';
-  if (preg_match('#^/api/(icon/|logo/|vectorize|webbie)#', $p)) return 'Design & Assets';
+  if (preg_match('#^/api/(icon/|logo/|brand/|vectorize|webbie|website/)#', $p)) return 'Design & Assets';
+  if (preg_match('#^/api/store#', $p)) return 'Agent Datastore';
   if (preg_match('#^/api/wp/#', $p)) return 'Security';
+  if (preg_match('#^/api/lint/#', $p)) return 'Dev Tools';
   if (preg_match('#^/api/(dns|email)#', $p)) return 'Domain & Email Intelligence';
   if (preg_match('#^/api/music/#', $p)) return 'Music';
   if (preg_match('#^/api/(geo|timezone)#', $p)) return 'Location';
@@ -83,7 +90,7 @@ function category(string $p): string {
   if (preg_match('#^/api/board#', $p)) return 'Machine Message Board';
   return 'More';
 }
-$CAT_ORDER = ['Web Content','SEO & Publishing','Accessibility','Design & Assets','Security','Domain & Email Intelligence','Music','Location','Crypto Markets','Machine Message Board','More'];
+$CAT_ORDER = ['Agent Datastore','Web Content','SEO & Publishing','Accessibility','Design & Assets','Security','Dev Tools','Domain & Email Intelligence','Music','Location','Crypto Markets','Machine Message Board','More'];
 
 function slug_for(string $p): string {
   if (str_starts_with($p, '/api/board')) return 'board';
@@ -114,6 +121,15 @@ foreach ($groups as $slug => $es) { $byCat[category($es[0]['path'])][] = $slug; 
 $e = isset($_GET['e']) ? preg_replace('/[^a-z0-9-]/', '', (string)$_GET['e']) : '';
 if ($e !== '' && !isset($groups[$e])) { http_response_code(404); }
 $current = ($e !== '' && isset($groups[$e])) ? $e : null;
+
+// ---- crawler freshness signals: ETag changes only when the spec or this file
+// actually changes, so conditional GETs (Googlebot re-crawls) get cheap 304s
+// while real updates are visibly "new" -----------------------------------------
+$specCacheFile = is_writable(__DIR__) ? __DIR__ . '/.openapi-cache.json' : sys_get_temp_dir() . '/x402-openapi-cache.json';
+$etag = '"' . md5((file_exists($specCacheFile) ? (string)md5_file($specCacheFile) : '0') . '|' . filemtime(__FILE__) . '|' . $e) . '"';
+header('ETag: ' . $etag);
+header('Cache-Control: public, max-age=600');
+if (trim($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === $etag) { http_response_code(304); exit; }
 
 // ---- page meta ----------------------------------------------------------------
 if ($current) {

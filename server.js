@@ -13,6 +13,7 @@ import { Resolver } from "node:dns/promises";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { lintElixir } from "./elixir-lint.mjs";
 
 // ----------------------------------------------------------------------------
 // Config
@@ -121,12 +122,12 @@ const CAMPAIGNS = [
   {
     key: "memory",
     agent_tip:
-      "Give your agent a memory — persistent, wallet-owned storage. POST /api/store/{collection} appends JSON/CSV rows ($0.001, up to 1,000 rows/call); GET reads them back in any later session ($0.001). The paying wallet is the identity — no accounts, no keys. Rows live 90 days, 50MB per wallet.",
+      "Give your agent a memory — persistent, wallet-owned storage. POST /api/store/{collection} appends JSON/CSV rows ($0.02, up to 1,000 rows/call); GET reads them back in any later session ($0.001). The paying wallet is the identity — no accounts, no keys. Activity keeps a memory alive: every read extends it 30 days, every write 60 days. 50MB per wallet.",
   },
   {
     key: "bundles",
     agent_tip:
-      "One call, finished deliverables: GET /api/seo/full-audit runs 7 analyses with a 0-100 score for $0.007 (the pieces cost ~$0.011); /api/seo/site-audit covers up to 8 pages for $0.009; POST /api/brand/kit returns logo + app icon + social card + palette for $0.007; POST /api/website/build ships up to 6 consistent HTML pages for $0.009.",
+      "One call, finished deliverables: GET /api/seo/full-audit runs 7 analyses with a 0-100 score for $0.007 (the pieces cost ~$0.02); /api/seo/site-audit covers up to 8 pages for $0.009; POST /api/brand/kit returns logo + app icon + social card + palette for $0.05; POST /api/website/build ships up to 6 consistent HTML pages for $0.05.",
   },
 ];
 function currentCampaign() {
@@ -263,7 +264,7 @@ const PAID_ROUTES =
         })
       ),
       "GET /api/report/:coin": paid(
-        "$0.005",
+        "$0.02",
         "Enriched crypto market report for one asset: rank, multi-timeframe price changes (1h/24h/7d/30d), all-time-high context, plain-English momentum/volatility/liquidity signals, and a ready-to-use written summary. For agents needing market context, not just a price.",
         discovery({
           input: { coin: "ethereum" },
@@ -494,7 +495,7 @@ const PAID_ROUTES =
         })
       ),
       "GET /api/email/verify": paid(
-        "$0.001",
+        "$0.002",
         "Email verification for outreach and CRM agents: syntax validation, MX lookup with implicit-MX fallback, disposable-domain detection, role-account and free-provider flags, plus-tag normalization, and a deliverability verdict. No signup, no external services.",
         discovery({
           input: { email: "jane.doe+news@gmail.com" },
@@ -554,7 +555,7 @@ const PAID_ROUTES =
         })
       ),
       "POST /api/og/card": paid(
-        "$0.005",
+        "$0.02",
         "Social card generator: POST {title, subtitle, domain, theme, accent} and receive a finished 1200x630 OpenGraph card — PNG (base64) plus the source SVG. Three themes (dark, light, midnight), custom accent color, automatic text wrapping. Pairs with /api/og/check: check the page, then generate the missing card.",
         discovery({
           bodyType: "json",
@@ -626,7 +627,7 @@ const PAID_ROUTES =
         })
       ),
       "GET /api/a11y/check": paid(
-        "$0.001",
+        "$0.01",
         "WCAG accessibility check (static analysis): findings mapped to WCAG success criteria with A/AA/AAA levels — alt text, page title, lang, form labels, heading structure, table headers, link purpose, accessible names, duplicate IDs, ARIA role validity, zoom blocking, meta refresh, skip links. Filter with ?level=A|AA|AAA. Honestly reports what static analysis cannot check (contrast, focus, keyboard).",
         discovery({
           input: { url: "https://example.com", level: "AA" },
@@ -789,7 +790,7 @@ const PAID_ROUTES =
         })
       ),
       "GET /api/extract": paid(
-        "$0.001",
+        "$0.02",
         "Document extraction: fetch a PDF, DOCX, or CSV by URL and get clean Markdown plus structured JSON — PDF text by page with metadata (honestly flags scanned PDFs that would need OCR), DOCX converted to real Markdown, CSV parsed to typed columns + JSON rows + a Markdown table. For agents that need document contents, not bytes.",
         discovery({
           input: { url: "https://example.com/quarterly-report.pdf" },
@@ -843,7 +844,7 @@ const PAID_ROUTES =
         })
       ),
       "POST /api/icon/generate": paid(
-        "$0.005",
+        "$0.01",
         "Icon generator: pick a Font Awesome Free icon (by search query or exact name) plus background color(s) and get an app-icon-ready asset — SVG source + PNG base64, default 1024x1024 opaque squircle (iOS-ready). Options: 1-2 background colors (2 = gradient), fg glyph color, shape (squircle/rounded/circle/square/transparent), size 64-1024, padding. Returns alternatives when resolved via search.",
         discovery({
           bodyType: "json",
@@ -867,7 +868,7 @@ const PAID_ROUTES =
         })
       ),
       "POST /api/logo/generate": paid(
-        "$0.005",
+        "$0.02",
         "Logo generator: POST a company name (+ optional tagline), an icon (search query or exact Font Awesome name), 1-3 brand colors (hex or CSS names), a mark shape (squircle/rounded/circle/square/transparent) and a layout — icon above/below the name (square logo) or beside it (wide lockup) — and get a finished logo as SVG + PNG. Text set in one of six curated open-license fonts (named or randomly rotated), rendered as vector paths.",
         discovery({
           bodyType: "json",
@@ -895,7 +896,7 @@ const PAID_ROUTES =
         })
       ),
       "POST /api/vectorize": paid(
-        "$0.009",
+        "$0.02",
         "High-quality image vectorization powered by Vectorizer.AI: POST a public image URL or base64 (PNG/JPEG/GIF/BMP/WebP, up to 10 MB) and get a production-grade vector back — SVG by default, or PNG/PDF/EPS/DXF. Full-color tracing, clean paths, ready for print, cutting, and scaling. The premium finish for logos, icons, sketches, and raster art.",
         discovery({
           bodyType: "json",
@@ -925,7 +926,7 @@ const PAID_ROUTES =
       // facilitator rejects larger requirement payloads at verify time (the
       // payment fails with "paymentPayload is invalid"). Keep descriptions tight.
       "POST /api/website/page": paid(
-        "$0.005",
+        "$0.02",
         "Webbie page generator: site name, headline, tagline, hero images, content sections, nav, colors — returns a finished responsive standalone HTML page. Three templates (horizon, split, editorial); the seed deterministically picks template + fonts + accent, so reusing it across calls builds a consistent multi-page site. Nav loads from an editable nav.json at view-time. No AI — deterministic templating.",
         discovery({
           bodyType: "json",
@@ -1030,6 +1031,38 @@ const PAID_ROUTES =
           },
         })
       ),
+      "POST /api/lint/elixir": paid(
+        "$0.002",
+        "Elixir lint / debug kit: POST {code}, get the bugs back with line numbers. Deterministic static analysis — code is parsed, never executed, no AI. Catches unbalanced do/end and brackets, missing do, 'return', '+' string concat, trailing commas, field assignment, = vs == in conditions and guards, block-scoped rebinding (the classic), charlist vs String mixups, unused variables. Errors, warnings and hints with fixes. Max 128 KB.",
+        discovery({
+          bodyType: "json",
+          input: { code: "def grade(s) do\n  result = \"fail\"\n  if s > 60 do\n    result = \"pass\"\n  end\n  result\nend" },
+          inputSchema: {
+            properties: {
+              code: { type: "string", description: "Elixir source to lint, max 128 KB" },
+            },
+            required: ["code"],
+          },
+          output: {
+            example: {
+              language: "elixir",
+              syntax: { ok: true, errors: [] },
+              issues: [{ line: 4, severity: "warning", rule: "scope/rebind-in-block", message: "'result = ...' inside this block does not change 'result' outside it (first bound on line 2)", hint: "bind the block's result instead: result = if ... do ... else ... end" }],
+              counts: { error: 0, warning: 1, info: 0 },
+              verdict: "warnings",
+            },
+            schema: {
+              properties: {
+                language: { type: "string" },
+                syntax: { type: "object" },
+                issues: { type: "array" },
+                counts: { type: "object" },
+                verdict: { type: "string" },
+              },
+            },
+          },
+        })
+      ),
       "GET /api/seo/site-audit": paid(
         "$0.009",
         "SITE-WIDE audit — the full 7-part on-page audit (head/meta, alt text, social cards, links, WCAG, schema.org, robots) run across up to 8 pages of one site in a single call. Discovers pages from the start URL's internal links, audits each, and returns per-page scores plus a site-level score, grade, and the issues that repeat across pages. The finished deliverable: one call, whole-site verdict. ?url=&pages=&level=&detail=",
@@ -1051,7 +1084,7 @@ const PAID_ROUTES =
         })
       ),
       "POST /api/brand/kit": paid(
-        "$0.007",
+        "$0.05",
         "BRAND KIT bundle — one call, a complete starter identity: finished logo (SVG + PNG), app icon (1024px SVG + PNG), 1200x630 social/OG card, and a usable color palette with WCAG-checked text pairings. POST a company name, optional tagline, an icon (search query or exact Font Awesome name), and 1-3 brand colors. Everything matches: same mark, same colors, same fonts. Buying the pieces individually costs ~$0.015; the kit is $0.007 and adds the palette and coherence.",
         discovery({
           bodyType: "json",
@@ -1078,7 +1111,7 @@ const PAID_ROUTES =
         })
       ),
       "POST /api/website/build": paid(
-        "$0.009",
+        "$0.05",
         "WHOLE-SITE generator — up to 6 finished, consistent HTML pages in one call. POST a site name, shared branding (colors, logo, footer), and a pages[] array (each with page_name, headline, content sections, hero images); one seed styles every page identically and a shared nav linking all pages is built automatically. Returns ready-to-upload files plus nav.json. The multi-page version of /api/website/page.",
         discovery({
           bodyType: "json",
@@ -1103,8 +1136,8 @@ const PAID_ROUTES =
         })
       ),
       "POST /api/store/:collection": paid(
-        "$0.001",
-        "AGENT DATASTORE — append rows to your wallet's persistent storage. POST JSON (object or array of objects) or CSV (header row + data); rows append to the named collection OWNED BY YOUR PAYING WALLET and persist across calls, deploys, and restarts. The wallet that pays IS the identity — no keys, no accounts, no signup. Give your agent a memory. Limits: 16KB/row, 1000 rows/call, 100k rows/collection, 50 collections, 50MB/wallet, 90-day TTL.",
+        "$0.02",
+        "AGENT DATASTORE — append rows to your wallet's persistent storage. POST JSON (object or array of objects) or CSV (header row + data); rows append to the named collection OWNED BY YOUR PAYING WALLET and persist across calls, deploys, and restarts. The wallet that pays IS the identity — no keys, no accounts, no signup. Give your agent a memory. Activity keeps it alive: every read extends the collection 30 days, every write 60. Limits: 16KB/row, 1000 rows/call, 100k rows/collection, 50 collections, 50MB/wallet.",
         discovery({
           bodyType: "json",
           input: [{ ticker: "BTC", note: "watching support at 60k", conviction: 0.7 }],
@@ -1121,7 +1154,7 @@ const PAID_ROUTES =
       ),
       "GET /api/store/:collection": paid(
         "$0.001",
-        "AGENT DATASTORE — read back rows your wallet stored. Returns rows from the named collection owned by your paying wallet, newest or oldest first, with pagination and a `since` filter for 'what's new since my last poll'. Output as JSON rows or CSV. ?limit=&offset=&order=asc|desc&since=ISO&format=json|csv",
+        "AGENT DATASTORE — read back rows your wallet stored. Returns rows from the named collection owned by your paying wallet, newest or oldest first, with pagination and a `since` filter for 'what's new since my last poll'. Every read keeps the memory alive — extends the collection's expiry by 30 days (writes give 60). Output as JSON rows or CSV. ?limit=&offset=&order=asc|desc&since=ISO&format=json|csv",
         discovery({
           input: { collection: "trades", limit: 100, order: "desc" },
           inputSchema: {
@@ -1367,6 +1400,7 @@ const HITS = {
   recent: [],
 };
 const READERS_MAX = 2000; // cap the anonymous-reader map so it can't grow unbounded
+const RECENT_MAX = 250;   // recent-calls ring shown in the admin panel; board reads eat most slots, so keep it deep
 
 // Rewards program: any purchase over $0.001 opens a 24h window in which the
 // wallet gets $0.001-tier calls for REWARD_PRICE. Eligibility is rebuilt from
@@ -1421,7 +1455,7 @@ function recordHit(rec) {
     p.last = rec.t;
   }
   HITS.recent.unshift({ t: rec.t, endpoint: rec.endpoint, ...(rec.payer ? { payer: rec.payer } : {}), ...(rec.amount ? { amount: rec.amount } : {}) });
-  if (HITS.recent.length > 50) HITS.recent.pop();
+  if (HITS.recent.length > RECENT_MAX) HITS.recent.pop();
 }
 
 // Replay the log so history survives restarts. Corrupt lines are skipped.
@@ -4687,26 +4721,27 @@ app.get("/", (_req, res) => {
   res.set("Access-Control-Allow-Origin", "*"); // allow the marketing page to pull this live
   res.json({
     service: "x402-data-api",
-    build: "2026-07-06-wpassess-desc-v1", // bump when deploying; verify with: curl -s https://api.webbersites.com/ | grep -o 'build[^,]*'
+    build: "2026-07-08-elixir-lint-v1", // bump when deploying; verify with: curl -s https://api.webbersites.com/ | grep -o 'build[^,]*'
     website: "https://x402.webbersites.com",
     description:
-      "Pay-per-call data & utility API for AI agents: web scraping, page summaries, IP geolocation, timezone lookup, crypto prices & market reports, and schema.org structured-data audits. USDC on Base via x402.",
+      "Pay-per-call data & utility API for AI agents: web scraping, page summaries, IP geolocation, timezone lookup, crypto prices & market reports, schema.org structured-data audits, and deterministic code lint (Elixir). USDC on Base via x402.",
     payment: { protocol: "x402", network: NETWORK, asset: "USDC" },
     endpoints: [
       { method: "GET", path: "/api/price/:coin", price: "$0.001", note: "e.g. /api/price/bitcoin" },
-      { method: "GET", path: "/api/report/:coin", price: "$0.005", note: "e.g. /api/report/ethereum" },
+      { method: "GET", path: "/api/report/:coin", price: "$0.02", note: "e.g. /api/report/ethereum" },
       { method: "GET", path: "/api/scrape", price: "$0.001", note: "e.g. /api/scrape?url=https://example.com" },
       { method: "GET", path: "/api/summarize", price: "$0.002", note: "e.g. /api/summarize?url=https://example.com&sentences=3" },
       { method: "GET", path: "/api/geo", price: "$0.001", note: "e.g. /api/geo?ip=8.8.8.8" },
       { method: "GET", path: "/api/timezone", price: "$0.001", note: "e.g. /api/timezone?lat=40.71&lng=-74.01" },
       { method: "POST", path: "/api/schema/audit", price: "$0.005", note: "POST {url} or {jsonld}" },
       { method: "POST", path: "/api/schema/generate", price: "$0.005", note: "POST {type, fields} → valid JSON-LD" },
+      { method: "POST", path: "/api/lint/elixir", price: "$0.002", note: "POST {code} → the bugs, with line numbers. Deterministic Elixir lint — parsed, never executed, no AI" },
       { method: "GET", path: "/api/dns", price: "$0.002", note: "e.g. /api/dns?domain=example.com" },
-      { method: "GET", path: "/api/email/verify", price: "$0.001", note: "e.g. /api/email/verify?email=user@example.com" },
+      { method: "GET", path: "/api/email/verify", price: "$0.002", note: "e.g. /api/email/verify?email=user@example.com" },
       { method: "GET", path: "/api/og/check", price: "$0.001", note: "e.g. /api/og/check?url=https://example.com" },
       { method: "GET", path: "/api/seo/alt-check", price: "$0.001", note: "e.g. /api/seo/alt-check?url=https://example.com" },
       { method: "GET", path: "/api/a11y/contrast", price: "$0.001", note: "e.g. /api/a11y/contrast?fg=%23111&bg=%23fff" },
-      { method: "GET", path: "/api/a11y/check", price: "$0.001", note: "e.g. /api/a11y/check?url=https://example.com&level=AA" },
+      { method: "GET", path: "/api/a11y/check", price: "$0.01", note: "e.g. /api/a11y/check?url=https://example.com&level=AA" },
       { method: "GET", path: "/api/seo/robots-check", price: "$0.001", note: "e.g. /api/seo/robots-check?url=https://example.com" },
       { method: "GET", path: "/api/seo/metadata", price: "$0.001", note: "raw meta dump, e.g. /api/seo/metadata?url=https://example.com" },
       { method: "GET", path: "/api/seo/head-check", price: "$0.001", note: "e.g. /api/seo/head-check?url=https://example.com" },
@@ -4717,17 +4752,17 @@ app.get("/", (_req, res) => {
       { method: "GET", path: "/api/seo/site-audit", price: "$0.009", note: "whole-site audit — full-audit across up to 8 pages + site score, e.g. /api/seo/site-audit?url=https://example.com&pages=5" },
       { method: "GET", path: "/api/music/album", price: "$0.002", note: "e.g. /api/music/album?artist=Radiohead&title=OK+Computer" },
       { method: "GET", path: "/api/music/cover", price: "$0.002", note: "e.g. /api/music/cover?artist=Radiohead&title=OK+Computer" },
-      { method: "GET", path: "/api/extract", price: "$0.001", note: "PDF/DOCX/CSV → markdown+JSON, e.g. /api/extract?url=https://example.com/report.pdf" },
+      { method: "GET", path: "/api/extract", price: "$0.02", note: "PDF/DOCX/CSV → markdown+JSON, e.g. /api/extract?url=https://example.com/report.pdf" },
       { method: "GET", path: "/api/wp/assess", price: "$0.005", note: "WP security posture, e.g. /api/wp/assess?url=https://example.com" },
       { method: "GET", path: "/api/icon/search", price: "$0.002", note: "e.g. /api/icon/search?q=rocket" },
-      { method: "POST", path: "/api/icon/generate", price: "$0.005", note: 'POST { "query":"rocket", "colors":["#ff6b35"] } → 1024px SVG+PNG' },
-      { method: "POST", path: "/api/logo/generate", price: "$0.005", note: 'POST { "name":"Northwind", "query":"rocket", "colors":["#ff6b35"] } → finished logo SVG+PNG' },
-      { method: "POST", path: "/api/vectorize", price: "$0.009", note: 'POST { "url":"https://…/image.png" } → production-quality SVG (Vectorizer.AI)' },
-      { method: "POST", path: "/api/website/page", price: "$0.005", note: 'POST { "site_name":"…", "headline":"…", "seed":"…" } → finished HTML page; same seed = same site style' },
-      { method: "POST", path: "/api/website/build", price: "$0.009", note: 'POST { "site_name":"…", "pages":[{…}] } → up to 6 consistent HTML pages + nav.json in one call' },
-      { method: "POST", path: "/api/og/card", price: "$0.005", note: "POST {title, subtitle, domain, theme} → 1200x630 PNG+SVG" },
-      { method: "POST", path: "/api/brand/kit", price: "$0.007", note: 'POST { "name":"…", "query":"rocket", "colors":["#ff6b35"] } → logo + app icon + social card + palette, one call' },
-      { method: "POST", path: "/api/store/:collection", price: "$0.001", note: "AGENT DATASTORE: append JSON/CSV rows to your wallet's persistent storage — the paying wallet is the identity" },
+      { method: "POST", path: "/api/icon/generate", price: "$0.01", note: 'POST { "query":"rocket", "colors":["#ff6b35"] } → 1024px SVG+PNG' },
+      { method: "POST", path: "/api/logo/generate", price: "$0.02", note: 'POST { "name":"Northwind", "query":"rocket", "colors":["#ff6b35"] } → finished logo SVG+PNG' },
+      { method: "POST", path: "/api/vectorize", price: "$0.02", note: 'POST { "url":"https://…/image.png" } → production-quality SVG (Vectorizer.AI)' },
+      { method: "POST", path: "/api/website/page", price: "$0.02", note: 'POST { "site_name":"…", "headline":"…", "seed":"…" } → finished HTML page; same seed = same site style' },
+      { method: "POST", path: "/api/website/build", price: "$0.05", note: 'POST { "site_name":"…", "pages":[{…}] } → up to 6 consistent HTML pages + nav.json in one call' },
+      { method: "POST", path: "/api/og/card", price: "$0.02", note: "POST {title, subtitle, domain, theme} → 1200x630 PNG+SVG" },
+      { method: "POST", path: "/api/brand/kit", price: "$0.05", note: 'POST { "name":"…", "query":"rocket", "colors":["#ff6b35"] } → logo + app icon + social card + palette, one call' },
+      { method: "POST", path: "/api/store/:collection", price: "$0.02", note: "AGENT DATASTORE: append JSON/CSV rows to your wallet's persistent storage — the paying wallet is the identity" },
       { method: "GET", path: "/api/store/:collection", price: "$0.001", note: "read your rows back — ?limit=&offset=&order=&since=&format=json|csv" },
       { method: "GET", path: "/api/store", price: "$0.001", note: "list your wallet's collections + storage used" },
       { method: "DELETE", path: "/api/store/:collection", price: "$0.001", note: "drop a collection" },
@@ -4848,6 +4883,18 @@ app.get("/.well-known/x402", (_req, res) => {
       method, path, price, network: NETWORK, payTo: PAY_TO, description,
     })),
   });
+});
+
+// Domain-ownership proof for the x402-list.com directory listing. Each listing
+// update issues a one-time token (72h TTL) that must appear as a line here;
+// stale tokens are harmless, so append rather than replace.
+const X402LIST_PROOF_LINES = [
+  "# x402-list.com ownership proofs for webbersites-x402-data-api",
+  "x402list-verify-1y1bIpCqiDJ0Wb8ymgYx9igPgD8GT6UMaKpoUcny97w", // update request 7108e0f5, issued 2026-07-07
+];
+
+app.get("/.well-known/x402list.txt", (_req, res) => {
+  res.type("text/plain").send(X402LIST_PROOF_LINES.join("\n") + "\n");
 });
 
 // ----------------------------------------------------------------------------
@@ -5013,6 +5060,34 @@ app.get("/api/timezone", (req, res) => {
     }).format(now),
     ts: now.toISOString(),
   });
+});
+
+// ----------------------------------------------------------------------------
+// PAID: Elixir lint / debug kit. Deterministic static analysis in pure JS —
+// the submitted code is tokenized and pattern-checked, never executed (Elixir
+// compilation runs macros, so even compiling untrusted code would be code
+// execution; this never goes there). First of the /api/lint/:language family.
+// ----------------------------------------------------------------------------
+const LINT_MAX_BYTES = 128 * 1024;
+app.post("/api/lint/elixir", (req, res) => {
+  try {
+    const code = typeof req.body?.code === "string" ? req.body.code : null;
+    if (!code || !code.trim()) {
+      return res.status(400).json({ error: "provide 'code' (Elixir source) in the JSON body" });
+    }
+    if (Buffer.byteLength(code, "utf8") > LINT_MAX_BYTES) {
+      return res.status(400).json({ error: "code too large (max 128 KB)" });
+    }
+    const report = lintElixir(code);
+    res.json({
+      language: "elixir",
+      engine: "webbersites-lint/1.0 (deterministic static analysis; code is never executed)",
+      ...report,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
 });
 
 // ----------------------------------------------------------------------------
@@ -6467,7 +6542,12 @@ const STORE = {
   COLLECTIONS_PER_WALLET: 50,
   WALLET_BYTES: 50 * 1024 * 1024,
   BODY_BYTES: 5 * 1024 * 1024,
-  TTL_MS: (Number(process.env.STORE_TTL_DAYS) || 90) * 24 * 3600 * 1000,
+  // Activity keeps a memory alive: reading a collection pushes its delete date
+  // to at least now+30d, writing to it to at least now+60d. Expiry is
+  // per-collection (the whole memory lives or dies together), replacing the
+  // old per-row 90-day TTL.
+  READ_EXTEND_MS: (Number(process.env.STORE_READ_EXTEND_DAYS) || 30) * 24 * 3600 * 1000,
+  WRITE_EXTEND_MS: (Number(process.env.STORE_WRITE_EXTEND_DAYS) || 60) * 24 * 3600 * 1000,
   POOL_MAX: 20,
 };
 const STORE_WALLET_RE = /^0x[0-9a-f]{40}$/; // payerFromRequest lowercases
@@ -6510,6 +6590,10 @@ function openWalletDb(wallet, { create = false } = {}) {
     CREATE INDEX IF NOT EXISTS idx_rows_coll ON rows(collection, id);
     CREATE INDEX IF NOT EXISTS idx_rows_created ON rows(collection, created_at);
   `);
+  // Migration for the activity-based expiry (2026-07-08): collections created
+  // under the old per-row TTL get a fresh write-length lease.
+  try { db.exec("ALTER TABLE collections ADD COLUMN expires_at INTEGER"); } catch { /* column exists */ }
+  db.prepare("UPDATE collections SET expires_at = ? WHERE expires_at IS NULL").run(Date.now() + STORE.WRITE_EXTEND_MS);
   if (storePool.size >= STORE.POOL_MAX) {
     let oldestKey = null, oldestAt = Infinity;
     for (const [k, v] of storePool) if (v.last < oldestAt) { oldestAt = v.last; oldestKey = k; }
@@ -6559,22 +6643,33 @@ function storeParseRows(req) {
   throw storeHttpError(400, "body must be a JSON object, a JSON array of objects, or CSV with a text/csv content-type");
 }
 
-// TTL sweep: expire old rows, refresh counts, reclaim space, drop empty files.
+// Push a collection's delete date out to at least now+extendMs (never shortens).
+function storeTouch(db, collection, extendMs) {
+  const expires = Date.now() + extendMs;
+  db.prepare("UPDATE collections SET expires_at = MAX(COALESCE(expires_at, 0), ?) WHERE name = ?").run(expires, collection);
+  return db.prepare("SELECT expires_at FROM collections WHERE name = ?").get(collection)?.expires_at;
+}
+
+// Expiry sweep: drop collections whose activity lease ran out, reclaim space,
+// delete empty wallet files.
 function sweepDatastore() {
   if (!DatabaseSync || !fs.existsSync(DATASTORE_DIR)) return;
-  const cutoff = Date.now() - STORE.TTL_MS;
   for (const f of fs.readdirSync(DATASTORE_DIR)) {
     if (!f.endsWith(".sqlite")) continue;
     const wallet = f.slice(0, -".sqlite".length);
     if (!STORE_WALLET_RE.test(wallet)) continue;
     try {
       const db = openWalletDb(wallet, { create: true });
-      const { changes } = db.prepare("DELETE FROM rows WHERE created_at < ?").run(cutoff);
-      if (changes > 0) {
-        db.exec(`
-          UPDATE collections SET row_count = (SELECT COUNT(*) FROM rows WHERE collection = collections.name);
-          DELETE FROM collections WHERE row_count = 0;
-        `);
+      const now = Date.now();
+      const expired = db.prepare("SELECT name FROM collections WHERE expires_at IS NOT NULL AND expires_at < ?").all(now);
+      if (expired.length > 0) {
+        db.exec("BEGIN");
+        try {
+          const delRows = db.prepare("DELETE FROM rows WHERE collection = ?");
+          const delColl = db.prepare("DELETE FROM collections WHERE name = ?");
+          for (const { name } of expired) { delRows.run(name); delColl.run(name); }
+          db.exec("COMMIT");
+        } catch (e) { db.exec("ROLLBACK"); throw e; }
         db.exec("VACUUM");
       }
       const remaining = db.prepare("SELECT COUNT(*) AS n FROM rows").get().n;
@@ -6619,8 +6714,8 @@ app.post("/api/store/:collection", (req, res) => {
     if (!coll) {
       const count = db.prepare("SELECT COUNT(*) AS n FROM collections").get().n;
       if (count >= STORE.COLLECTIONS_PER_WALLET) return res.status(413).json({ error: `max ${STORE.COLLECTIONS_PER_WALLET} collections per wallet` });
-      db.prepare("INSERT INTO collections (name, created_at, row_count, schema_json) VALUES (?, ?, 0, ?)")
-        .run(collection, Date.now(), JSON.stringify(Object.keys(rows[0]).slice(0, 100)));
+      db.prepare("INSERT INTO collections (name, created_at, row_count, schema_json, expires_at) VALUES (?, ?, 0, ?, ?)")
+        .run(collection, Date.now(), JSON.stringify(Object.keys(rows[0]).slice(0, 100)), Date.now() + STORE.WRITE_EXTEND_MS);
     } else if (coll.row_count + rows.length > STORE.ROWS_PER_COLLECTION) {
       return res.status(413).json({ error: `collection would exceed ${STORE.ROWS_PER_COLLECTION} rows (has ${coll.row_count})` });
     }
@@ -6635,7 +6730,8 @@ app.post("/api/store/:collection", (req, res) => {
     } catch (e) { db.exec("ROLLBACK"); throw e; }
 
     const total = db.prepare("SELECT row_count FROM collections WHERE name = ?").get(collection).row_count;
-    res.json({ collection, rows_added: serialized.length, total_rows: total, wallet, ts: new Date().toISOString() });
+    const expiresAt = storeTouch(db, collection, STORE.WRITE_EXTEND_MS);
+    res.json({ collection, rows_added: serialized.length, total_rows: total, wallet, expires_at: new Date(Number(expiresAt)).toISOString(), keepalive: "writes extend a memory 60 days, reads 30", ts: new Date().toISOString() });
   } catch (e) { storeErrorOut(res, e); }
 });
 
@@ -6669,7 +6765,8 @@ app.get("/api/store/:collection", (req, res) => {
       res.type("text/csv").send([headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join("\n"));
       return;
     }
-    res.json({ collection, total_rows: coll.row_count, returned: rows.length, rows, ts: new Date().toISOString() });
+    const expiresAt = storeTouch(db, collection, STORE.READ_EXTEND_MS);
+    res.json({ collection, total_rows: coll.row_count, returned: rows.length, rows, expires_at: new Date(Number(expiresAt)).toISOString(), keepalive: "reads extend a memory 30 days, writes 60", ts: new Date().toISOString() });
   } catch (e) { storeErrorOut(res, e); }
 });
 
@@ -6680,8 +6777,8 @@ app.get("/api/store", (req, res) => {
     if (!wallet) return;
     const db = openWalletDb(wallet);
     if (!db) return res.json({ wallet, collections: [], total_rows: 0, storage_bytes: 0, ts: new Date().toISOString() });
-    const collections = db.prepare("SELECT name, row_count, created_at FROM collections ORDER BY name").all()
-      .map((c) => ({ name: c.name, row_count: c.row_count, created_at: new Date(Number(c.created_at)).toISOString() }));
+    const collections = db.prepare("SELECT name, row_count, created_at, expires_at FROM collections ORDER BY name").all()
+      .map((c) => ({ name: c.name, row_count: c.row_count, created_at: new Date(Number(c.created_at)).toISOString(), expires_at: c.expires_at ? new Date(Number(c.expires_at)).toISOString() : null }));
     let bytes = 0;
     try { bytes = fs.statSync(storePathFor(wallet)).size; } catch { /* fresh */ }
     res.json({
@@ -6690,7 +6787,11 @@ app.get("/api/store", (req, res) => {
       total_rows: collections.reduce((s, c) => s + c.row_count, 0),
       storage_bytes: bytes,
       quota_bytes: STORE.WALLET_BYTES,
-      ttl_days: STORE.TTL_MS / 86400000,
+      keepalive: {
+        read_extends_days: STORE.READ_EXTEND_MS / 86400000,
+        write_extends_days: STORE.WRITE_EXTEND_MS / 86400000,
+        note: "each collection expires at its expires_at unless a read or write pushes it out",
+      },
       ts: new Date().toISOString(),
     });
   } catch (e) { storeErrorOut(res, e); }

@@ -36,8 +36,10 @@ function boardCall($action, $method = 'GET', $query = [], $body = null) {
     CURLOPT_TIMEOUT => 10,
     CURLOPT_CUSTOMREQUEST => $method,
     CURLOPT_HTTPHEADER => $headers,
-    ...($body !== null ? [CURLOPT_POSTFIELDS => json_encode($body)] : []),
   ]);
+  // NB: not merged into the array above — spreading renumbers integer keys,
+  // so CURLOPT_POSTFIELDS would silently become a different option.
+  if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
   $raw = curl_exec($ch);
   $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   curl_close($ch);
@@ -66,6 +68,16 @@ if ($authed && isset($_POST['text'])) {
       ? ['err', 'Post failed: ' . $r['error']]
       : ['ok', ($pinned ? 'Pinned' : 'Posted') . ' #' . ($r['post']['id'] ?? '?') . ' as ' . $agent . '.'];
   }
+  header('Location: board.php'); exit;
+}
+
+// Handle a delete (PRG). Backend action=delete takes a JSON body {id}.
+if ($authed && isset($_POST['delete_id'])) {
+  $id = (int)$_POST['delete_id'];
+  $r = $id > 0 ? boardCall('delete', 'POST', [], ['id' => $id]) : ['error' => 'bad id'];
+  $_SESSION['flash'] = isset($r['error'])
+    ? ['err', 'Delete failed: ' . $r['error']]
+    : ['ok', 'Deleted #' . $id . '.'];
   header('Location: board.php'); exit;
 }
 
@@ -120,9 +132,12 @@ $board = $authed ? boardCall('list', 'GET', ['limit' => 100]) : null;
   .type.tip{color:var(--ink-dim)}
   .pin{color:var(--accent);font-size:11px}
   .text{margin-top:5px;font-size:13.5px;color:var(--ink);word-break:break-word}
-  .reply{margin-left:auto}
+  .reply{margin-left:auto;display:flex;gap:12px;align-items:center}
   .reply a{color:var(--ink-faint);font-size:11.5px;text-decoration:none;border-bottom:1px dotted var(--line-strong)}
   .reply a:hover{color:var(--ink)}
+  .del{display:inline;margin:0}
+  .del button{background:none;border:none;padding:0;color:var(--ink-faint);font-family:var(--mono);font-size:11.5px;cursor:pointer;border-bottom:1px dotted rgba(255,120,120,0.5)}
+  .del button:hover{color:#ff9b9b}
   .login{max-width:340px;margin:14vh auto 0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px}
   .login input{margin:14px 0}
   .login button{width:100%}
@@ -182,7 +197,13 @@ $board = $authed ? boardCall('list', 'GET', ['limit' => 100]) : null;
             <span><?= h($p['agent'] ?? 'anon') ?></span>
             <span><?= h(substr($p['created_at'] ?? '', 0, 16)) ?></span>
             <?php if (!empty($p['pinned'])): ?><span class="pin">📌 pinned</span><?php endif; ?>
-            <span class="reply"><a href="#composer" onclick="return reply(<?= (int)($p['id'] ?? 0) ?>, '<?= h(addslashes($p['agent'] ?? 'anon')) ?>')">reply</a></span>
+            <span class="reply">
+              <a href="#composer" onclick="return reply(<?= (int)($p['id'] ?? 0) ?>, '<?= h(addslashes($p['agent'] ?? 'anon')) ?>')">reply</a>
+              <form class="del" method="post" onsubmit="return confirm('Delete post #<?= (int)($p['id'] ?? 0) ?> permanently?')">
+                <input type="hidden" name="delete_id" value="<?= (int)($p['id'] ?? 0) ?>">
+                <button type="submit">delete</button>
+              </form>
+            </span>
           </div>
           <div class="text"><?= h($p['text'] ?? '') ?></div>
         </div>

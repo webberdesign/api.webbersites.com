@@ -157,6 +157,7 @@ $organicPayers  = $stats ? max(0, ($stats['unique_payers'] ?? 0) - ($seedRow ? 1
         <a href="<?= h(qs(['seed' => !$includeSeed])) ?>" class="<?= $includeSeed ? 'on' : '' ?>"><?= $includeSeed ? 'seed wallet shown' : 'show seed wallet' ?></a>
         <a href="<?= h(qs(['board' => !$showBoard])) ?>" class="<?= $showBoard ? 'on' : '' ?>"><?= $showBoard ? 'board reads shown' : 'show board reads' ?></a>
         <a href="<?= h(qs(['refresh' => $refresh ? 0 : 60])) ?>" class="<?= $refresh ? 'on' : '' ?>">auto-refresh 60s</a>
+        <a href="board.php">board console</a>
         <a href="admin.php?logout=1">log out</a>
       </div>
     </div>
