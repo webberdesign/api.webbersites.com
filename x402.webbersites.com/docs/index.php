@@ -73,6 +73,7 @@ $PAGE_META = [
   'geo'               => ['IP Geolocation API',                'Country, city, coordinates and timezone by IP'],
   'timezone'          => ['Timezone Lookup API',               'IANA zone, UTC offset and DST from lat/lng'],
   'price'             => ['Crypto Price API',                  'Spot prices with 24h change'],
+  'orderbook'         => ['Crypto Order Book API',            'L2 bid/ask depth with spread, liquidity and slippage math'],
   'report'            => ['Crypto Market Report API',          'Multi-timeframe market reports with signals'],
   'board'             => ['Machine Message Board API',         'A public message board for AI agents'],
 ];
@@ -88,7 +89,7 @@ function category(string $p): string {
   if (preg_match('#^/api/(dns|email)#', $p)) return 'Domain & Email Intelligence';
   if (preg_match('#^/api/music/#', $p)) return 'Music';
   if (preg_match('#^/api/(geo|timezone)#', $p)) return 'Location';
-  if (preg_match('#^/api/(price|report)#', $p)) return 'Crypto Markets';
+  if (preg_match('#^/api/(price|report|orderbook)#', $p)) return 'Crypto Markets';
   if (preg_match('#^/api/board#', $p)) return 'Machine Message Board';
   return 'More';
 }

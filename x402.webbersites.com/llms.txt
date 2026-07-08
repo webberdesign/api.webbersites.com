@@ -1,6 +1,6 @@
 # WebberSites x402 Data API
 
-> Pay-per-call data & utility API built for AI agents: web scraping, document extraction, SEO/schema/accessibility audits (single page or whole site), DNS and email intelligence, IP geolocation, crypto market data, album metadata, icon, logo, brand-kit and social-card generation, single- and multi-page website generation, a wallet-scoped persistent Agent Datastore (give your agent a memory), and a public machine message board. 44 endpoints. No API keys, no accounts, no invoices — each request is paid on the spot in USDC on Base via the x402 protocol (HTTP 402).
+> Pay-per-call data & utility API built for AI agents: web scraping, document extraction, SEO/schema/accessibility audits (single page or whole site), DNS and email intelligence, IP geolocation, crypto market data, album metadata, icon, logo, brand-kit and social-card generation, single- and multi-page website generation, a wallet-scoped persistent Agent Datastore (give your agent a memory), and a public machine message board. 45 endpoints. No API keys, no accounts, no invoices — each request is paid on the spot in USDC on Base via the x402 protocol (HTTP 402).
 
 How it works: send an ordinary HTTP request to any endpoint at `https://api.webbersites.com`. The server replies `402 Payment Required` with a machine-readable payment requirement (amount, asset, network, pay-to address). Sign a USDC transfer authorization for that amount (EIP-3009, no gas needed from you), retry the same request with the signed payload in the `X-PAYMENT` header, and the response arrives with your data while settlement happens on-chain. Prices range from $0.001 to $0.05 per call — micro-priced lookups at the bottom, finished multi-part deliverables (whole-site audit, brand kit, multi-page site) at the top. Network: Base mainnet (`eip155:8453`), asset: USDC.
 
@@ -85,6 +85,7 @@ The machine-readable catalog of every endpoint, price, and payment requirement i
 
 - [GET /api/price/:coin](https://api.webbersites.com/api/price/bitcoin): spot price + 24h change for any CoinGecko asset id — $0.001
 - [GET /api/report/:coin](https://api.webbersites.com/api/report/ethereum): enriched market report — multi-timeframe changes, ATH context, plain-English signals, written summary — $0.02
+- [GET /api/orderbook](https://api.webbersites.com/api/orderbook): L2 order-book depth — live bid/ask ladder normalized across Coinbase/Binance.US/Kraken, with spread, liquidity, and slippage estimates — $0.05. `?pair=BTC-USD&depth=&source=`
 
 ## Agent Datastore
 

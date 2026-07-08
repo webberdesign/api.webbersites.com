@@ -16,6 +16,7 @@ import path from "node:path";
 import { lintElixir } from "./elixir-lint.mjs";
 import { lintJavascript } from "./js-lint.mjs";
 import { lintPhp } from "./php-lint.mjs";
+import { fetchOrderbook } from "./orderbook.mjs";
 
 // ----------------------------------------------------------------------------
 // Config
@@ -313,6 +314,45 @@ const PAID_ROUTES =
                 from_ath_pct: { type: "number" },
                 signals: { type: "object" },
                 summary: { type: "string" },
+              },
+            },
+          },
+        })
+      ),
+      "GET /api/orderbook": paid(
+        "$0.05",
+        "L2 ORDER-BOOK DEPTH — the live bid/ask ladder for any crypto pair, normalized across Coinbase, Binance.US and Kraken (auto-fallback, or pick a source). Returns bids/asks to your depth plus the analytics that matter: mid, spread (absolute + bps), book liquidity per side, and slippage estimates for $1k/$10k/$100k market orders both directions. Deterministic, no keys, ~1.5s cache. ?pair=BTC-USD&depth=50&source=auto",
+        discovery({
+          input: { pair: "BTC-USD", depth: 50, source: "auto" },
+          inputSchema: {
+            properties: {
+              pair: { type: "string", description: "BASE-QUOTE, e.g. BTC-USD, ETH-USD, SOL-USD" },
+              depth: { type: "number", description: "price levels per side, 1-200 (default 50)" },
+              source: { type: "string", description: "auto (default), coinbase, binance, kraken" },
+            },
+            required: ["pair"],
+          },
+          output: {
+            example: {
+              pair: "BTC-USD",
+              source: "coinbase",
+              mid: 62655.35,
+              spread: 0.01,
+              spread_bps: 0.002,
+              best_bid: { price: 62655.34, size: 1.25 },
+              best_ask: { price: 62655.35, size: 0.4 },
+              liquidity_quote: { bids: 812443.1, asks: 764210.9 },
+              slippage: { buy: [{ notional: 100000, fillable: true, avg_price: 62658.15, vs_best_bps: 0.45, filled_base: 1.596 }], sell: ["…"] },
+              bids: [[62655.34, 1.25]],
+              asks: [[62655.35, 0.4]],
+            },
+            schema: {
+              properties: {
+                pair: { type: "string" }, source: { type: "string" }, mid: { type: "number" },
+                spread: { type: "number" }, spread_bps: { type: "number" },
+                best_bid: { type: "object" }, best_ask: { type: "object" },
+                liquidity_quote: { type: "object" }, slippage: { type: "object" },
+                bids: { type: "array" }, asks: { type: "array" },
               },
             },
           },
@@ -4767,7 +4807,7 @@ app.get("/", (_req, res) => {
   res.set("Access-Control-Allow-Origin", "*"); // allow the marketing page to pull this live
   res.json({
     service: "x402-data-api",
-    build: "2026-07-08-lint-family-v1", // bump when deploying; verify with: curl -s https://api.webbersites.com/ | grep -o 'build[^,]*'
+    build: "2026-07-08-orderbook-v1", // bump when deploying; verify with: curl -s https://api.webbersites.com/ | grep -o 'build[^,]*'
     website: "https://x402.webbersites.com",
     description:
       "Pay-per-call data & utility API for AI agents: web scraping, page summaries, IP geolocation, timezone lookup, crypto prices & market reports, schema.org structured-data audits, and deterministic code lint (Elixir, JavaScript, PHP). USDC on Base via x402.",
@@ -4775,6 +4815,7 @@ app.get("/", (_req, res) => {
     endpoints: [
       { method: "GET", path: "/api/price/:coin", price: "$0.001", note: "e.g. /api/price/bitcoin" },
       { method: "GET", path: "/api/report/:coin", price: "$0.02", note: "e.g. /api/report/ethereum" },
+      { method: "GET", path: "/api/orderbook", price: "$0.05", note: "L2 depth — live bid/ask ladder + spread, liquidity, slippage estimates. e.g. /api/orderbook?pair=BTC-USD&depth=50" },
       { method: "GET", path: "/api/scrape", price: "$0.001", note: "e.g. /api/scrape?url=https://example.com" },
       { method: "GET", path: "/api/summarize", price: "$0.002", note: "e.g. /api/summarize?url=https://example.com&sentences=3" },
       { method: "GET", path: "/api/geo", price: "$0.001", note: "e.g. /api/geo?ip=8.8.8.8" },
@@ -4994,6 +5035,32 @@ app.get("/api/report/:coin", async (req, res) => {
     });
   } catch (e) {
     res.status(502).json({ error: "data unavailable", detail: String(e.message) });
+  }
+});
+
+// ----------------------------------------------------------------------------
+// PAID: L2 order-book depth. Built from a paid, pinned board request (#18,
+// @meridian-mm: "an /api/orderbook endpoint with L2 depth would be worth
+// $0.05/call to me"). Public exchange books, normalized, with slippage math.
+// Short cache keeps hard-polling agents within upstream rate limits.
+// ----------------------------------------------------------------------------
+const OB_CACHE = new Map(); // key -> { data, expires }
+const OB_CACHE_MS = 1500;
+app.get("/api/orderbook", async (req, res) => {
+  try {
+    const pair = String(req.query.pair || "");
+    const depth = Math.min(200, Math.max(1, parseInt(req.query.depth, 10) || 50));
+    const source = String(req.query.source || "auto").toLowerCase();
+    const key = `${source}:${pair.toUpperCase()}:${depth}`;
+    const hit = OB_CACHE.get(key);
+    if (hit && hit.expires > Date.now()) return res.json(hit.data);
+    const book = await fetchOrderbook(pair, { depth, source });
+    const data = { ...book, cache_ms: OB_CACHE_MS, ts: new Date().toISOString() };
+    OB_CACHE.set(key, { data, expires: Date.now() + OB_CACHE_MS });
+    if (OB_CACHE.size > 500) OB_CACHE.delete(OB_CACHE.keys().next().value);
+    res.json(data);
+  } catch (e) {
+    res.status(e.status && e.status >= 400 && e.status < 500 ? e.status : 502).json({ error: String(e.message || e) });
   }
 });
 
