@@ -130,7 +130,7 @@ const CAMPAIGNS = [
   {
     key: "bundles",
     agent_tip:
-      "One call, finished deliverables: GET /api/seo/full-audit runs 7 analyses with a 0-100 score for $0.007 (the pieces cost ~$0.02); /api/seo/site-audit covers up to 8 pages for $0.009; POST /api/brand/kit returns logo + app icon + social card + palette for $0.05; POST /api/website/build ships up to 6 consistent HTML pages for $0.05.",
+      "One call, finished deliverables: GET /api/seo/full-audit runs 7 analyses with a 0-100 score for $0.02; /api/seo/site-audit covers up to 8 pages for $0.05; POST /api/brand/kit returns logo + app icon + social card + palette for $0.05; POST /api/website/build ships up to 6 consistent HTML pages for $0.05.",
   },
 ];
 function currentCampaign() {
@@ -768,8 +768,8 @@ const PAID_ROUTES =
         })
       ),
       "GET /api/seo/full-audit": paid(
-        "$0.007",
-        "FULL on-page audit bundle — seven analyses in one call against a single URL: head/meta SEO audit, alt-text check, social-card check with og:image verification, internal-link analysis, WCAG accessibility check (choose level), schema.org structured-data audit, and a robots/llms.txt crawler summary. Returns a transparent 0-100 score with itemized deductions plus every full sub-report. Buying these individually costs ~$0.011; the bundle is $0.007.",
+        "$0.02",
+        "FULL on-page audit bundle — seven analyses in one call against a single URL: head/meta SEO audit, alt-text check, social-card check with og:image verification, internal-link analysis, WCAG accessibility check (choose level), schema.org structured-data audit, and a robots/llms.txt crawler summary. Returns a transparent 0-100 score with itemized deductions plus every full sub-report. Pieces individually total ~$0.02; the bundle adds the unified score free.",
         discovery({
           input: { url: "https://example.com", level: "AA" },
           inputSchema: {
@@ -1150,7 +1150,7 @@ const PAID_ROUTES =
         })
       ),
       "GET /api/seo/site-audit": paid(
-        "$0.009",
+        "$0.05",
         "SITE-WIDE audit — the full 7-part on-page audit (head/meta, alt text, social cards, links, WCAG, schema.org, robots) run across up to 8 pages of one site in a single call. Discovers pages from the start URL's internal links, audits each, and returns per-page scores plus a site-level score, grade, and the issues that repeat across pages. The finished deliverable: one call, whole-site verdict. ?url=&pages=&level=&detail=",
         discovery({
           input: { url: "https://example.com", pages: 5, level: "AA" },
@@ -1171,7 +1171,7 @@ const PAID_ROUTES =
       ),
       "POST /api/brand/kit": paid(
         "$0.05",
-        "BRAND KIT bundle — one call, a complete starter identity: finished logo (SVG + PNG), app icon (1024px SVG + PNG), 1200x630 social/OG card, and a usable color palette with WCAG-checked text pairings. POST a company name, optional tagline, an icon (search query or exact Font Awesome name), and 1-3 brand colors. Everything matches: same mark, same colors, same fonts. Buying the pieces individually costs ~$0.015; the kit is $0.007 and adds the palette and coherence.",
+        "BRAND KIT bundle — one call, a complete starter identity: finished logo (SVG + PNG), app icon (1024px SVG + PNG), 1200x630 social/OG card, and a usable color palette with WCAG-checked text pairings. POST a company name, optional tagline, an icon (search query or exact Font Awesome name), and 1-3 brand colors. Everything matches: same mark, same colors, same fonts. The pieces individually total ~$0.05; the kit is $0.05 and adds the palette and coherence.",
         discovery({
           bodyType: "json",
           input: { name: "Northwind", tagline: "Data for autonomous agents", query: "rocket", colors: ["#ff6b35"], shape: "squircle", theme: "dark", domain: "northwind.io" },
@@ -4465,7 +4465,7 @@ function buildOpenApi() {
         "Call any endpoint normally; a 402 response returns machine-readable payment requirements. Sign the USDC authorization (EIP-3009) and retry with the " +
         "X-PAYMENT header to receive the data. Machine-readable payment catalog: /.well-known/x402",
       "x-guidance":
-        "Every endpoint is pay-per-call: expect HTTP 402 with signed payment requirements on the first request; pay in USDC on Base (EIP-3009) and retry with the X-PAYMENT header — @x402/fetch automates this. Prices are in each operation's x-payment-info ($0.001–$0.009). No registration, no API keys, no rate-limit tiers. Prefer MCP? Remote endpoint at /mcp (quote mode without a wallet), `npx -y webbersites-x402-mcp` locally, or one-click via Smithery: https://smithery.ai/servers/service-tfij/webbersites-x402. Human docs: https://x402.webbersites.com/docs/",
+        "Every endpoint is pay-per-call: expect HTTP 402 with signed payment requirements on the first request; pay in USDC on Base (EIP-3009) and retry with the X-PAYMENT header — @x402/fetch automates this. Prices are in each operation's x-payment-info ($0.001–$0.05). No registration, no API keys, no rate-limit tiers. Prefer MCP? Remote endpoint at /mcp (quote mode without a wallet), `npx -y webbersites-x402-mcp` locally, or one-click via Smithery: https://smithery.ai/servers/service-tfij/webbersites-x402. Human docs: https://x402.webbersites.com/docs/",
       contact: {
         url: "https://x402.webbersites.com",
         // Public contact + ownership verification for indexers (x402scan).
@@ -4592,7 +4592,7 @@ try {
   };
 } catch (e) { console.warn("⚠ x402 client libs not loaded — /mcp runs quote-only:", e.message); }
 
-// Everything currently prices at ≤ $0.009, so this ceiling has ample headroom;
+// Everything currently prices at ≤ $0.05, so this ceiling has ample headroom;
 // callers can lower it per session.
 const MCP_DEFAULT_MAX_PRICE = 0.50;
 
@@ -4807,7 +4807,7 @@ app.get("/", (_req, res) => {
   res.set("Access-Control-Allow-Origin", "*"); // allow the marketing page to pull this live
   res.json({
     service: "x402-data-api",
-    build: "2026-07-08-orderbook-v1", // bump when deploying; verify with: curl -s https://api.webbersites.com/ | grep -o 'build[^,]*'
+    build: "2026-07-08-seo-reprice-v1", // bump when deploying; verify with: curl -s https://api.webbersites.com/ | grep -o 'build[^,]*'
     website: "https://x402.webbersites.com",
     description:
       "Pay-per-call data & utility API for AI agents: web scraping, page summaries, IP geolocation, timezone lookup, crypto prices & market reports, schema.org structured-data audits, and deterministic code lint (Elixir, JavaScript, PHP). USDC on Base via x402.",
@@ -4837,8 +4837,8 @@ app.get("/", (_req, res) => {
       { method: "GET", path: "/api/seo/sitemap-check", price: "$0.001", note: "e.g. /api/seo/sitemap-check?url=https://example.com" },
       { method: "GET", path: "/api/seo/nav", price: "$0.001", note: "nav links only, e.g. /api/seo/nav?url=https://example.com" },
       { method: "GET", path: "/api/seo/links", price: "$0.001", note: "e.g. /api/seo/links?url=https://example.com" },
-      { method: "GET", path: "/api/seo/full-audit", price: "$0.007", note: "the bundle — 7 analyses + score, e.g. /api/seo/full-audit?url=https://example.com" },
-      { method: "GET", path: "/api/seo/site-audit", price: "$0.009", note: "whole-site audit — full-audit across up to 8 pages + site score, e.g. /api/seo/site-audit?url=https://example.com&pages=5" },
+      { method: "GET", path: "/api/seo/full-audit", price: "$0.02", note: "the bundle — 7 analyses + score, e.g. /api/seo/full-audit?url=https://example.com" },
+      { method: "GET", path: "/api/seo/site-audit", price: "$0.05", note: "whole-site audit — full-audit across up to 8 pages + site score, e.g. /api/seo/site-audit?url=https://example.com&pages=5" },
       { method: "GET", path: "/api/music/album", price: "$0.01", note: "e.g. /api/music/album?artist=Radiohead&title=OK+Computer" },
       { method: "GET", path: "/api/music/cover", price: "$0.01", note: "e.g. /api/music/cover?artist=Radiohead&title=OK+Computer" },
       { method: "GET", path: "/api/extract", price: "$0.02", note: "PDF/DOCX/CSV → markdown+JSON, e.g. /api/extract?url=https://example.com/report.pdf" },

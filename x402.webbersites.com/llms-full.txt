@@ -111,12 +111,12 @@ Internal-link analyzer for one page: internal/external counts, nofollow/sponsore
 Params: `url` (required).
 Response: `{ "total_links": 87, "internal": 54, "external": 33, "rel": { "nofollow": 12 }, "generic_anchors": ["read more"], "top_internal_anchor_texts": [{ "text": "pricing", "count": 4 }] }`
 
-### GET /api/seo/full-audit — $0.007
-The bundle: seven analyses in one call (head/meta, alt-text, social cards with og:image verification, internal links, WCAG accessibility, schema.org audit, robots/llms.txt) with a transparent 0-100 score and itemized deductions. Individually ~$0.011; bundled $0.007.
+### GET /api/seo/full-audit — $0.02
+The bundle: seven analyses in one call (head/meta, alt-text, social cards with og:image verification, internal links, WCAG accessibility, schema.org audit, robots/llms.txt) with a transparent 0-100 score and itemized deductions. The seven pieces individually total ~$0.02; bundled $0.02 with the score included.
 Params: `url` (required), `level` (WCAG level: A|AA|AAA, default AA).
 Response: `{ "url": "…", "score": 84, "grade": "B", "deductions": [{ "points": 6, "reason": "3 head/meta warnings" }], "sections": { "head": { … }, "social": { … }, "alt_text": { … }, "accessibility": { … }, "structured_data": { … }, "robots": { … } } }`
 
-### GET /api/seo/site-audit — $0.009
+### GET /api/seo/site-audit — $0.05
 WHOLE-SITE audit: runs the full 7-part audit across up to 8 pages of one site in a single call. Pages are discovered from the start URL's internal links (shallowest first). Returns per-page scores, a site-level score and grade, and the issues that repeat across pages. `detail=full` includes every complete per-page report.
 Params: `url` (required, usually the homepage), `pages` (2-8, default 5), `level` (A|AA|AAA), `detail` (summary|full).
 Response: `{ "site": "…", "site_score": 78, "grade": "C", "pages_audited": 5, "pages": [{ "url": "…", "score": 82, "grade": "B", "top_issues": ["2 head/meta problems"], "section_verdicts": { … } }], "common_issues": [{ "reason": "images missing alt", "pages_affected": 4 }] }`

@@ -38,8 +38,8 @@ The machine-readable catalog of every endpoint, price, and payment requirement i
 - [GET /api/seo/sitemap-check](https://api.webbersites.com/api/seo/sitemap-check): sitemap validator with sampled URL health — $0.001. `?url=`
 - [GET /api/seo/nav](https://api.webbersites.com/api/seo/nav): navigation extractor — nav links grouped by region — $0.001. `?url=`
 - [GET /api/seo/links](https://api.webbersites.com/api/seo/links): internal-link analyzer — internal/external split, rel usage, anchor quality — $0.001. `?url=`
-- [GET /api/seo/full-audit](https://api.webbersites.com/api/seo/full-audit): the bundle — seven analyses in one call with a 0-100 score — $0.007. `?url=&level=`
-- [GET /api/seo/site-audit](https://api.webbersites.com/api/seo/site-audit): whole-site audit — the seven-part audit across up to 8 pages in one call, per-page scores + site score + repeating issues — $0.009. `?url=&pages=&level=&detail=`
+- [GET /api/seo/full-audit](https://api.webbersites.com/api/seo/full-audit): the bundle — seven analyses in one call with a 0-100 score — $0.02. `?url=&level=`
+- [GET /api/seo/site-audit](https://api.webbersites.com/api/seo/site-audit): whole-site audit — the seven-part audit across up to 8 pages in one call, per-page scores + site score + repeating issues — $0.05. `?url=&pages=&level=&detail=`
 
 ## Accessibility
 
