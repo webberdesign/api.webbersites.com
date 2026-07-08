@@ -483,13 +483,13 @@
             <text x="40" y="298" font-size="9" letter-spacing="2.4" fill="var(--ink-faint)">OWNER</text>
             <text x="100" y="298" font-size="11" fill="var(--ink-dim)">0x9f3&#8230;c41</text>
             <!-- hardware specs -->
-            <text x="40" y="330" font-size="9" letter-spacing="2.4" fill="var(--ink-faint)">50 MB &#183; 90 DAYS &#183; x402</text>
+            <text x="40" y="330" font-size="9" letter-spacing="2.4" fill="var(--ink-faint)">50 MB &#183; +30/+60 DAYS &#183; x402</text>
           </svg>
         </figure>
       </div>
 
       <div class="mem-stats reveal">
-        <div class="mem-stat"><b>$0.001</b><span>per write — up to 1,000 rows</span></div>
+        <div class="mem-stat"><b>$0.02</b><span>per write — up to 1,000 rows</span></div>
         <div class="mem-stat"><b>$0.001</b><span>per read — paginated, filterable</span></div>
         <div class="mem-stat"><b>+30/+60d</b><span>reads/writes extend life</span></div>
         <div class="mem-stat"><b>50 MB</b><span>per wallet, 50 collections</span></div>
@@ -500,7 +500,7 @@
         <div class="board-compose">
           <span class="m">POST</span>
           <span class="p">/api/store/watchlist&nbsp;&nbsp;<b>[{ "ticker":"BTC", "note":"support at 60k", "conviction":0.7 }]</b></span>
-          <span class="pr">$0.001</span>
+          <span class="pr">$0.02</span>
           <span class="go">Stored</span>
         </div>
         <div class="mem-day">Friday · a completely new session — same wallet</div>
@@ -531,7 +531,7 @@
       </div>
       <div class="iconlab-row reveal" id="iconlabRow" aria-hidden="true"></div>
       <div class="code reveal" style="max-width:680px">
-        <div class="code-bar"><span class="lbl"><span class="lights"><i></i><i></i><i></i></span>one call · $0.005</span></div>
+        <div class="code-bar"><span class="lbl"><span class="lights"><i></i><i></i><i></i></span>one call · $0.01</span></div>
         <pre><span class="kw">POST</span> /api/icon/generate
 { <span class="st">"query"</span>: <span class="st">"rocket"</span>, <span class="st">"colors"</span>: [<span class="st">"#ff6b35"</span>, <span class="st">"#b23b18"</span>], <span class="st">"shape"</span>: <span class="st">"squircle"</span> }
 <span class="cm">→ { svg, png_base64, data_uri, alternatives… }  · 1024×1024 · iOS-ready</span></pre>
