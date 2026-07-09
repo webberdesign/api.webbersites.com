@@ -8,8 +8,9 @@ import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import TurndownService from "turndown";
 import geoip from "geoip-lite";
-import { isIP } from "node:net";
-import { Resolver } from "node:dns/promises";
+import { isIP, connect as netConnect } from "node:net";
+import tls from "node:tls";
+import { Resolver, lookup as dnsLookup } from "node:dns/promises";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -492,6 +493,97 @@ const PAID_ROUTES =
                 city: { type: "string" },
                 timezone: { type: "string" },
                 ll: { type: "array" },
+              },
+            },
+          },
+        })
+      ),
+      "GET /api/uptime": paid(
+        "$0.002",
+        "Uptime/health probe for any public URL: sends a HEAD request (auto GET fallback when the server refuses HEAD), follows redirects with per-hop safety checks, and returns up/down, HTTP status, latency in ms, redirect chain, final URL, and key response headers. Deterministic, no page download — a monitoring probe agents can call on a schedule.",
+        discovery({
+          input: { url: "https://example.com" },
+          inputSchema: {
+            properties: {
+              url: {
+                type: "string",
+                description: "Public http(s) URL to check, e.g. https://example.com",
+              },
+            },
+            required: ["url"],
+          },
+          output: {
+            example: {
+              url: "https://example.com",
+              up: true,
+              status: 200,
+              latency_ms: 132,
+              method: "HEAD",
+              final_url: "https://example.com/",
+              redirects: 0,
+              headers: { server: "ECS", content_type: "text/html" },
+              checked_at: "2026-07-08T00:00:00.000Z",
+            },
+            schema: {
+              properties: {
+                url: { type: "string" },
+                up: { type: "boolean" },
+                status: { type: "number" },
+                latency_ms: { type: "number" },
+                method: { type: "string" },
+                final_url: { type: "string" },
+                redirects: { type: "number" },
+                headers: { type: "object" },
+                error: { type: "string", description: "Present when up=false: timeout, dns, tls, connection refused…" },
+                checked_at: { type: "string" },
+              },
+            },
+          },
+        })
+      ),
+      "GET /api/uptime/report": paid(
+        "$0.01",
+        "Deep uptime & health report from one socket-level HEAD probe: DNS/TCP/TLS/TTFB timing waterfall, TLS certificate (issuer, expiry countdown, trust status), HTTP/2 support via ALPN, server IP + hosting location, CDN detection, redirect chain, caching + security response headers, compression, server clock skew. On failure, says exactly which phase died. Everything a monitor needs in one deterministic call — no page download.",
+        discovery({
+          input: { url: "https://example.com" },
+          inputSchema: {
+            properties: {
+              url: {
+                type: "string",
+                description: "Public http(s) URL to probe, e.g. https://example.com",
+              },
+            },
+            required: ["url"],
+          },
+          output: {
+            example: {
+              url: "https://example.com",
+              up: true,
+              status: 200,
+              timing_ms: { dns: 12, tcp: 21, tls: 38, ttfb: 74, total: 146 },
+              network: { ip: "93.184.216.34", server_location: { country: "US", city: "Ashburn" }, h2_supported: true, tls_protocol: "TLSv1.3" },
+              certificate: { issuer: "DigiCert", days_remaining: 211, trusted: true },
+              cdn: "cloudflare",
+              security_headers: { present: ["strict-transport-security"], missing: ["content-security-policy"] },
+            },
+            schema: {
+              properties: {
+                url: { type: "string" },
+                up: { type: "boolean" },
+                status: { type: "number" },
+                timing_ms: { type: "object", description: "dns, tcp, tls, ttfb, total — milliseconds per connection phase" },
+                network: { type: "object", description: "ip, server_location (geoip), alpn, h2_supported, tls_protocol, cipher" },
+                certificate: { type: "object", description: "subject, issuer, sans, valid_from/to, days_remaining, trusted" },
+                redirect_chain: { type: "array" },
+                response_headers: { type: "object" },
+                caching: { type: "object" },
+                security_headers: { type: "object" },
+                compression: { type: "string" },
+                clock_skew_ms: { type: "number" },
+                cdn: { type: "string" },
+                error: { type: "string" },
+                failed_phase: { type: "string", description: "Present when up=false: dns, tcp, tls, or http" },
+                checked_at: { type: "string" },
               },
             },
           },
@@ -1415,6 +1507,34 @@ app.use((req, res, next) => {
       `<https://x402.webbersites.com/docs/>; rel="service-doc"; type="text/html"`,
     ].join(", "));
   }
+  next();
+});
+
+// ----------------------------------------------------------------------------
+// Method hygiene for /api/* (must run BEFORE the paywall):
+//  - OPTIONS: browsers preflight any cross-origin call that carries an
+//    X-PAYMENT header. Preflights can't carry payment, so answer them free
+//    with real CORS headers — otherwise browser-based x402 clients are blocked
+//    before they ever reach the paywall. Ends the response here, so preflights
+//    never hit handlers or the hit log.
+//  - HEAD: the paywall route map is keyed "GET /path" and Express routes HEAD
+//    into app.get handlers, so HEAD would run paid handlers for free. Rewrite
+//    to GET so it 402s/charges identically. Node already latched the original
+//    method into the ServerResponse, so the body is still stripped on the
+//    wire — HEAD semantics stay correct.
+// ----------------------------------------------------------------------------
+app.use((req, res, next) => {
+  if (!req.path.startsWith("/api/")) return next();
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Expose-Headers", "Payment-Required, X-Payment-Response, Payment-Response, Link");
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Methods", "GET, HEAD, POST, DELETE, OPTIONS");
+    res.set("Access-Control-Allow-Headers", req.header("access-control-request-headers") || "Content-Type, X-PAYMENT, PAYMENT-SIGNATURE, X-Wallet");
+    res.set("Access-Control-Max-Age", "86400");
+    res.set("Vary", "Access-Control-Request-Headers");
+    return res.status(204).end();
+  }
+  if (req.method === "HEAD") req.method = "GET";
   next();
 });
 
@@ -4365,6 +4485,7 @@ function apiCategory(p) {
   if (/^\/api\/(icon|logo|brand)\/|^\/api\/(vectorize|website)/.test(p)) return "Design & Assets";
   if (/^\/api\/wp\//.test(p)) return "Security";
   if (/^\/api\/(dns|email)/.test(p)) return "Domain & Email Intelligence";
+  if (/^\/api\/uptime/.test(p)) return "Monitoring";
   if (/^\/api\/music\//.test(p)) return "Music";
   if (/^\/api\/(geo|timezone)/.test(p)) return "Location";
   if (/^\/api\/(price|report)/.test(p)) return "Crypto Markets";
@@ -4460,6 +4581,9 @@ function buildOpenApi() {
     info: {
       title: "WebberSites x402 Data API",
       version: "1.0.0",
+      // x402scan (and others) read info.contact.email as an origin-ownership
+      // signal; it verifies the listing and enables the merchant page there.
+      contact: { email: process.env.CONTACT_EMAIL || "tittybingo@gmail.com" },
       description:
         "Pay-per-call data & utility API for AI agents. No API keys or accounts: every request is paid on the spot in USDC on Base via the x402 protocol. " +
         "Call any endpoint normally; a 402 response returns machine-readable payment requirements. Sign the USDC authorization (EIP-3009) and retry with the " +
@@ -4827,6 +4951,7 @@ app.get("/", (_req, res) => {
       { method: "POST", path: "/api/lint/php", price: "$0.002", note: "POST {code} → the bugs, with line numbers. Deterministic PHP lint incl. SQL-injection and mysql_* checks" },
       { method: "GET", path: "/api/dns", price: "$0.002", note: "e.g. /api/dns?domain=example.com" },
       { method: "GET", path: "/api/email/verify", price: "$0.002", note: "e.g. /api/email/verify?email=user@example.com" },
+      { method: "GET", path: "/api/uptime", price: "$0.002", note: "uptime probe — up/down, status, latency, redirect chain. e.g. /api/uptime?url=https://example.com" },
       { method: "GET", path: "/api/og/check", price: "$0.001", note: "e.g. /api/og/check?url=https://example.com" },
       { method: "GET", path: "/api/seo/alt-check", price: "$0.001", note: "e.g. /api/seo/alt-check?url=https://example.com" },
       { method: "GET", path: "/api/a11y/contrast", price: "$0.001", note: "e.g. /api/a11y/contrast?fg=%23111&bg=%23fff" },
@@ -4986,6 +5111,16 @@ app.get("/.well-known/x402list.txt", (_req, res) => {
   res.type("text/plain").send(X402LIST_PROOF_LINES.join("\n") + "\n");
 });
 
+// Ownership proof for the Glama MCP directory (glama.ai). Glama polls this
+// file and marks the connector listing owner-verified when the email matches
+// the Glama account. GLAMA_EMAIL env overrides without a redeploy elsewhere.
+app.get("/.well-known/glama.json", (_req, res) => {
+  res.json({
+    $schema: "https://glama.ai/mcp/schemas/connector.json",
+    maintainers: [{ email: process.env.GLAMA_EMAIL || "tittybingo@gmail.com" }],
+  });
+});
+
 // ----------------------------------------------------------------------------
 // PAID: raw-ish price. Cheap, high-volume tier.
 // ----------------------------------------------------------------------------
@@ -5103,6 +5238,101 @@ app.get("/api/geo", (req, res) => {
     return res.status(404).json({ error: "no geolocation for this ip", ip });
   }
   res.json({ ...geo, ts: new Date().toISOString() });
+});
+
+// ----------------------------------------------------------------------------
+// PAID: uptime probe. HEAD the target (GET fallback for servers that refuse
+// HEAD — body is cancelled, never downloaded), follow redirects manually so
+// each hop gets the SSRF re-check and the chain is reported. Deterministic,
+// no AI, one outbound request per hop.
+// ----------------------------------------------------------------------------
+const UPTIME_MAX_REDIRECTS = 5;
+const UPTIME_TIMEOUT_MS = 10_000;
+const UPTIME_HEADERS = {
+  "User-Agent": "webbersites-uptime/1.0 (+https://x402.webbersites.com)",
+  Accept: "*/*",
+};
+
+function uptimeErrorLabel(e) {
+  if (e?.name === "AbortError" || e?.name === "TimeoutError") return "timeout";
+  const code = e?.cause?.code || e?.code || "";
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return "dns";
+  if (code === "ECONNREFUSED") return "connection refused";
+  if (code === "ECONNRESET") return "connection reset";
+  if (/CERT|TLS|SSL/i.test(code) || /certificate/i.test(String(e?.cause?.message || e?.message || ""))) return "tls";
+  if (/not allowed|invalid url/.test(String(e?.message || ""))) return "redirect to blocked host";
+  return "unreachable";
+}
+
+app.get("/api/uptime", async (req, res) => {
+  let target;
+  try {
+    target = assertSafeUrl(String(req.query.url || ""));
+  } catch (e) {
+    return res.status(400).json({ error: e.message, hint: "pass ?url=https://example.com" });
+  }
+
+  const chain = [];
+  const started = Date.now();
+  let current = target;
+  let method = "HEAD";
+  let finalRes = null;
+  let error = null;
+
+  try {
+    for (let hop = 0; hop <= UPTIME_MAX_REDIRECTS; hop++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), UPTIME_TIMEOUT_MS);
+      let r;
+      try {
+        r = await fetch(current, { method, redirect: "manual", signal: controller.signal, headers: UPTIME_HEADERS });
+        // Some servers reject HEAD outright — fall back to GET for the rest of
+        // the probe (status/headers only; the body is cancelled below).
+        if (method === "HEAD" && (r.status === 405 || r.status === 501)) {
+          method = "GET";
+          r = await fetch(current, { method, redirect: "manual", signal: controller.signal, headers: UPTIME_HEADERS });
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+      if (r.body) r.body.cancel().catch(() => {});
+
+      const location = r.headers.get("location");
+      if (r.status >= 300 && r.status < 400 && location) {
+        const nextUrl = assertSafeUrl(new URL(location, current).toString());
+        chain.push({ status: r.status, to: nextUrl });
+        current = nextUrl;
+        continue;
+      }
+      finalRes = r;
+      break;
+    }
+    if (!finalRes) error = "too many redirects";
+  } catch (e) {
+    error = uptimeErrorLabel(e);
+  }
+
+  const latency_ms = Date.now() - started;
+  const base = {
+    url: target,
+    latency_ms,
+    redirects: chain.length,
+    ...(chain.length ? { redirect_chain: chain } : {}),
+    checked_at: new Date().toISOString(),
+  };
+  if (!finalRes) {
+    return res.json({ ...base, up: false, error });
+  }
+  const h = finalRes.headers;
+  const pick = (name) => (h.get(name) ? { [name.replace(/-/g, "_")]: h.get(name) } : {});
+  res.json({
+    ...base,
+    up: finalRes.status < 400,
+    status: finalRes.status,
+    method,
+    final_url: current,
+    headers: { ...pick("server"), ...pick("content-type"), ...pick("content-length"), ...pick("last-modified") },
+  });
 });
 
 // ----------------------------------------------------------------------------
