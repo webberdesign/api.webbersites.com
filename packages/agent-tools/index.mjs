@@ -14,7 +14,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 
 const DEFAULT_BASE = "https://api.webbersites.com";
-const CLIENT_UA = "webbersites-agent-tools/0.1.0 (+https://x402.webbersites.com)";
+const CLIENT_UA = "webbersites-agent-tools/0.1.1 (+https://x402.webbersites.com)";
 
 /**
  * Build the tool set from the live API.
@@ -52,7 +52,7 @@ export async function createWebbersitesTools(opts = {}) {
 
   const tools = [];
   for (const [path, ops] of Object.entries(spec.paths || {})) {
-    for (const method of ["get", "post"]) {
+    for (const method of ["get", "post", "delete"]) {
       const op = ops[method];
       if (!op || !op.operationId) continue;
       const tool = buildTool({ base, path, method, op, payingFetch, quoteMode: !wallet });
@@ -70,7 +70,7 @@ export async function createWebbersitesTools(opts = {}) {
 }
 
 function buildTool({ base, path, method, op, payingFetch, quoteMode }) {
-  const name = op.operationId.replace(/^(get|post)_api_/, "$1_");
+  const name = op.operationId.replace(/^(get|post|delete)_api_/, "$1_");
   const price = op["x-price"] || null;
 
   const properties = {};

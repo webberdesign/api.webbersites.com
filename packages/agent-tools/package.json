@@ -1,6 +1,6 @@
 {
   "name": "webbersites-agent-tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "45 ready-made pay-per-call tools for AI agents — web scraping, SEO audits, crypto data, lint, brand/site generation, persistent agent memory. USDC on Base via x402; each call pays for itself from $0.001. Works with Vercel AI SDK, LangChain, AgentKit, or bare.",
   "type": "module",
   "main": "index.mjs",

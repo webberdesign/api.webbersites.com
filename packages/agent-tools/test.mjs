@@ -12,7 +12,8 @@ const ok = (cond, msg) => {
 // --- quote mode -------------------------------------------------------------
 const q = await createWebbersitesTools();
 ok(q.quoteMode === true && q.wallet === null, "quote mode without key");
-ok(q.tools.length >= 40, `catalog built from live openapi.json (${q.tools.length} tools)`);
+ok(q.tools.length >= 46, `catalog built from live openapi.json (${q.tools.length} tools)`);
+ok(!!q.byName.delete_store_collection, "delete tool present (delete_store_collection)");
 ok(!!q.byName.get_price_coin, "path-param tool present (get_price_coin)");
 ok(!!q.byName.get_orderbook, "query-param tool present (get_orderbook)");
 ok(!!q.byName.post_lint_elixir, "body tool present (post_lint_elixir)");
