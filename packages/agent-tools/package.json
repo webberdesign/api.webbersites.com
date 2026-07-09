@@ -1,0 +1,51 @@
+{
+  "name": "webbersites-agent-tools",
+  "version": "0.1.0",
+  "description": "45 ready-made pay-per-call tools for AI agents — web scraping, SEO audits, crypto data, lint, brand/site generation, persistent agent memory. USDC on Base via x402; each call pays for itself from $0.001. Works with Vercel AI SDK, LangChain, AgentKit, or bare.",
+  "type": "module",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node test.mjs"
+  },
+  "keywords": [
+    "x402",
+    "ai-agents",
+    "agent-tools",
+    "micropayments",
+    "usdc",
+    "base",
+    "mcp",
+    "vercel-ai-sdk",
+    "langchain",
+    "agentkit",
+    "pay-per-call",
+    "web-scraping",
+    "seo",
+    "crypto-prices",
+    "lint"
+  ],
+  "author": "WebberSites <https://x402.webbersites.com>",
+  "license": "MIT",
+  "homepage": "https://x402.webbersites.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webberdesign/api.webbersites.com.git",
+    "directory": "packages/agent-tools"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@x402/core": "^2.17.0",
+    "@x402/evm": "^2.17.0",
+    "@x402/fetch": "^2.17.0",
+    "viem": "^2.52.2"
+  }
+}
